@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../config/api_config.dart';
 import 'api_exception.dart';
+import 'session_expiry.dart';
 import 'session_store.dart';
 
 class ApiClient {
@@ -32,16 +33,20 @@ class ApiClient {
     String path, {
     bool auth = false,
   }) async {
-    final response = await _send(() => http.get(_uri(path), headers: _headers(auth: auth)));
-    return _decodeMap(response);
+    final response = await _send(
+      () => http.get(_uri(path), headers: _headers(auth: auth)),
+    );
+    return _decodeMap(response, auth: auth, path: path);
   }
 
   Future<List<dynamic>> getList(
     String path, {
     bool auth = false,
   }) async {
-    final response = await _send(() => http.get(_uri(path), headers: _headers(auth: auth)));
-    return _decodeList(response);
+    final response = await _send(
+      () => http.get(_uri(path), headers: _headers(auth: auth)),
+    );
+    return _decodeList(response, auth: auth, path: path);
   }
 
   Future<Map<String, dynamic>> post(
@@ -56,7 +61,7 @@ class ApiClient {
         body: body == null ? null : jsonEncode(body),
       ),
     );
-    return _decodeMap(response);
+    return _decodeMap(response, auth: auth, path: path);
   }
 
   Future<Map<String, dynamic>> postMultipart(
@@ -88,7 +93,7 @@ class ApiClient {
       final streamed = await request.send();
       return http.Response.fromStream(streamed);
     }, timeout: const Duration(seconds: 60));
-    return _decodeMap(response);
+    return _decodeMap(response, auth: auth, path: path);
   }
 
   Future<Map<String, dynamic>> put(
@@ -103,7 +108,7 @@ class ApiClient {
         body: body == null ? null : jsonEncode(body),
       ),
     );
-    return _decodeMap(response);
+    return _decodeMap(response, auth: auth, path: path);
   }
 
   Future<Map<String, dynamic>> patch(
@@ -118,7 +123,7 @@ class ApiClient {
         body: body == null ? null : jsonEncode(body),
       ),
     );
-    return _decodeMap(response);
+    return _decodeMap(response, auth: auth, path: path);
   }
 
   Future<http.Response> _send(
@@ -136,16 +141,25 @@ class ApiClient {
     }
   }
 
-  Map<String, dynamic> _decodeMap(http.Response response) {
+  Map<String, dynamic> _decodeMap(
+    http.Response response, {
+    required bool auth,
+    required String path,
+  }) {
     final decoded = _decodeBody(response);
     if (response.statusCode >= 200 && response.statusCode < 300) {
       if (decoded is Map<String, dynamic>) return decoded;
       return {'data': decoded};
     }
+    _handleUnauthorizedIfNeeded(response, auth: auth, path: path);
     throw _error(response, decoded);
   }
 
-  List<dynamic> _decodeList(http.Response response) {
+  List<dynamic> _decodeList(
+    http.Response response, {
+    required bool auth,
+    required String path,
+  }) {
     final decoded = _decodeBody(response);
     if (response.statusCode >= 200 && response.statusCode < 300) {
       if (decoded is List) return decoded;
@@ -154,7 +168,26 @@ class ApiClient {
       }
       return const [];
     }
+    _handleUnauthorizedIfNeeded(response, auth: auth, path: path);
     throw _error(response, decoded);
+  }
+
+  void _handleUnauthorizedIfNeeded(
+    http.Response response, {
+    required bool auth,
+    required String path,
+  }) {
+    if (response.statusCode != 401 || !auth) return;
+
+    final normalized = path.toLowerCase();
+    if (normalized.contains('/auth/login') ||
+        normalized.contains('/auth/register') ||
+        normalized.contains('/auth/forgot-password')) {
+      return;
+    }
+
+    // Fire-and-forget: limpa sessão e volta ao welcome.
+    SessionExpiry.handleUnauthorized();
   }
 
   dynamic _decodeBody(http.Response response) {

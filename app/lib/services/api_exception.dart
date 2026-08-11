@@ -8,10 +8,20 @@ class ApiException implements Exception {
   @override
   String toString() => message;
 
+  /// 401 de token inválido/expirado (não confundir com login com senha errada).
+  bool get isSessionExpired {
+    if (statusCode != 401) return false;
+    final lower = message.toLowerCase();
+    return lower.contains('unauthenticated') ||
+        lower.contains('token') ||
+        lower.contains('jwt') ||
+        lower.contains('blacklisted') ||
+        lower.contains('authorization');
+  }
+
   /// Primeira mensagem de validação do Laravel, se houver.
   String get displayMessage {
-    if (statusCode == 401 ||
-        message.toLowerCase().contains('unauthenticated')) {
+    if (isSessionExpired) {
       return 'Sessão expirada. Faça login novamente.';
     }
     if (errors != null && errors!.isNotEmpty) {

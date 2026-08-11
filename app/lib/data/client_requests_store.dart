@@ -55,4 +55,34 @@ class ClientRequestsStore extends ChangeNotifier {
     notifyListeners();
     return created;
   }
+
+  Future<ServiceRequest> update(
+    String id, {
+    required String category,
+    required String description,
+    required String address,
+    required String city,
+    required String state,
+    required String cep,
+  }) async {
+    final updated = await _service.update(
+      id,
+      category: category,
+      description: description,
+      address: address,
+      city: city,
+      state: state,
+      cep: cep,
+    );
+    final index = requests.indexWhere((r) => r.id == updated.id);
+    if (index >= 0) {
+      final next = [...requests];
+      next[index] = updated;
+      requests = next;
+    } else {
+      requests = [updated, ...requests];
+    }
+    notifyListeners();
+    return updated;
+  }
 }

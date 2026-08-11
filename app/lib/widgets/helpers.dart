@@ -10,6 +10,9 @@ String formatCurrency(double value) {
 }
 
 void showAppSnackBar(BuildContext context, String message) {
+  // Aviso de sessão é exibido após o redirect global.
+  if (message == 'Sessão expirada. Faça login novamente.') return;
+
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
   );

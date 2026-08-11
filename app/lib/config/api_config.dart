@@ -1,15 +1,13 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ApiConfig {
-  /// Override: `flutter run --dart-define=API_BASE_URL=http://192.168.0.10:8000/api`
+  /// Prioridade: `--dart-define=API_BASE_URL=...` → `.env` → fallback local.
   static String get baseUrl {
-    const fromEnv = String.fromEnvironment('API_BASE_URL');
-    if (fromEnv.isNotEmpty) return fromEnv;
+    const fromDefine = String.fromEnvironment('API_BASE_URL');
+    if (fromDefine.isNotEmpty) return _normalize(fromDefine);
 
-    // Emulador Android acessa o host via 10.0.2.2
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://10.0.2.2:8000/api';
-    }
+    final fromEnv = dotenv.maybeGet('API_BASE_URL')?.trim();
+    if (fromEnv != null && fromEnv.isNotEmpty) return _normalize(fromEnv);
 
     return 'http://127.0.0.1:8000/api';
   }
@@ -21,11 +19,17 @@ class ApiConfig {
 
   static String resolveStorageUrl(String pathOrUrl) {
     if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
-      return pathOrUrl.replaceFirst('http://localhost:8000', originUrl)
+      return pathOrUrl
+          .replaceFirst('http://localhost:8000', originUrl)
           .replaceFirst('http://127.0.0.1:8000', originUrl);
     }
     final clean = pathOrUrl.replaceFirst(RegExp(r'^/'), '');
-    final withStorage = clean.startsWith('storage/') ? clean : 'storage/$clean';
+    final withStorage =
+        clean.startsWith('storage/') ? clean : 'storage/$clean';
     return '$originUrl/$withStorage';
+  }
+
+  static String _normalize(String url) {
+    return url.replaceAll(RegExp(r'/$'), '');
   }
 }

@@ -1,16 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'screens/auth/welcome_screen.dart';
+import 'services/session_expiry.dart';
 import 'services/session_store.dart';
 import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await _loadEnv();
   await initializeDateFormatting('pt_BR');
   await SessionStore.instance.load();
   runApp(const ProServicoApp());
+}
+
+Future<void> _loadEnv() async {
+  try {
+    await dotenv.load(fileName: '.env');
+  } catch (_) {
+    try {
+      await dotenv.load(fileName: '.env.example');
+    } catch (e) {
+      debugPrint('Aviso: não foi possível carregar .env ($e)');
+    }
+  }
 }
 
 class ProServicoApp extends StatelessWidget {
@@ -21,6 +36,7 @@ class ProServicoApp extends StatelessWidget {
     return MaterialApp(
       title: 'Pro Serviço',
       debugShowCheckedModeBanner: false,
+      navigatorKey: SessionExpiry.navigatorKey,
       theme: AppTheme.light,
       locale: const Locale('pt', 'BR'),
       supportedLocales: const [Locale('pt', 'BR')],

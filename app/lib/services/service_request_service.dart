@@ -130,6 +130,30 @@ class ServiceRequestService {
     return ServiceRequest.fromJson(data);
   }
 
+  Future<ServiceRequest> update(
+    String id, {
+    required String category,
+    required String description,
+    required String address,
+    required String city,
+    required String state,
+    required String cep,
+  }) async {
+    final data = await _api.put(
+      '/service-requests/$id',
+      auth: true,
+      body: {
+        'category': category,
+        'description': description,
+        'address': address,
+        'city': city,
+        'state': state,
+        'cep': cep,
+      },
+    );
+    return ServiceRequest.fromJson(data);
+  }
+
   Future<ServiceRequest> updateStatus(
     String id, {
     required String status,

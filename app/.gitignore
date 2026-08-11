@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Environment local overrides (opcional — o app carrega `.env` dos assets)
+.env.local

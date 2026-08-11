@@ -109,6 +109,46 @@ class ServiceRequestController extends Controller
         ]));
     }
 
+    public function update(Request $request, ServiceRequest $serviceRequest): JsonResponse
+    {
+        $user = Auth::guard('api')->user();
+
+        if (! $user->isClient() || $serviceRequest->client_id !== $user->id) {
+            return response()->json(['message' => 'Apenas o cliente dono pode editar esta solicitação'], 403);
+        }
+
+        if (! in_array($serviceRequest->status, ['pending', 'in_progress'], true)) {
+            return response()->json(['message' => 'Só é possível editar serviços ativos'], 422);
+        }
+
+        $data = $request->validate([
+            'category' => ['required', 'string', 'max:255'],
+            'description' => ['required', 'string'],
+            'address' => ['required', 'string', 'max:255'],
+            'city' => ['required', 'string', 'max:255'],
+            'state' => ['required', 'string', 'max:2'],
+            'cep' => ['required', 'string', 'max:12'],
+        ]);
+
+        $location = collect([
+            $data['address'],
+            $data['city'],
+            $data['state'],
+            $data['cep'],
+        ])->filter(fn ($v) => filled(trim((string) $v)))->implode(' - ');
+
+        $serviceRequest->update([
+            ...$data,
+            'location' => $location,
+        ]);
+
+        return response()->json($serviceRequest->fresh()->load([
+            'client',
+            'professional',
+            'proposals.professional:id,name,email,phone',
+        ]));
+    }
+
     public function updateStatus(Request $request, ServiceRequest $serviceRequest): JsonResponse
     {
         $user = Auth::guard('api')->user();

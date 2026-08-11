@@ -114,6 +114,18 @@ class _ClientServicesScreenState extends State<ClientServicesScreen>
     );
   }
 
+  Future<void> _openEditSheet(ServiceRequest request) async {
+    final updated = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _EditServiceSheet(request: request),
+    );
+    if (updated == true && mounted) {
+      showAppSnackBar(context, 'Serviço atualizado.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -203,12 +215,7 @@ class _ClientServicesScreenState extends State<ClientServicesScreen>
                       onDetails: () =>
                           showProfessionalRequestDetail(context, request),
                       onCancel: () => _cancelRequest(request),
-                      onEdit: () {
-                        showAppSnackBar(
-                          context,
-                          'Edição de solicitação em breve.',
-                        );
-                      },
+                      onEdit: () => _openEditSheet(request),
                       onViewProposals: () => _openAllProposalsModal(request),
                       onGoToProposals: () => _openProposalsPage(request),
                     ),
@@ -563,6 +570,335 @@ class _OutlineAction extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EditServiceSheet extends StatefulWidget {
+  final ServiceRequest request;
+
+  const _EditServiceSheet({required this.request});
+
+  @override
+  State<_EditServiceSheet> createState() => _EditServiceSheetState();
+}
+
+class _EditServiceSheetState extends State<_EditServiceSheet> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _addressController;
+  late final TextEditingController _cityController;
+  late final TextEditingController _stateController;
+  late final TextEditingController _cepController;
+  late final TextEditingController _descriptionController;
+  late final List<String> _categoryOptions;
+  String? _category;
+  bool _saving = false;
+
+  static const _categories = [
+    'Elétrica',
+    'Hidráulica',
+    'Climatização',
+    'Pintura',
+    'Limpeza',
+    'Jardinagem',
+    'Marcenaria',
+    'Alvenaria',
+    'Informática',
+    'Outros',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    final request = widget.request;
+    final hasStructuredAddress = request.address?.trim().isNotEmpty == true ||
+        request.city?.trim().isNotEmpty == true;
+
+    _addressController = TextEditingController(
+      text: request.address?.trim().isNotEmpty == true
+          ? request.address!.trim()
+          : (hasStructuredAddress ? '' : request.location),
+    );
+    _cityController = TextEditingController(text: request.city?.trim() ?? '');
+    _stateController = TextEditingController(text: request.state?.trim() ?? '');
+    _cepController = TextEditingController(text: request.cep?.trim() ?? '');
+    _descriptionController = TextEditingController(
+      text: request.description,
+    );
+
+    final rawCategory = (request.category ?? '').trim();
+    final matched = _categories.cast<String?>().firstWhere(
+          (c) => c!.toLowerCase() == rawCategory.toLowerCase(),
+          orElse: () => null,
+        );
+    if (matched != null) {
+      _category = matched;
+      _categoryOptions = List<String>.from(_categories);
+    } else if (rawCategory.isNotEmpty) {
+      _category = rawCategory;
+      _categoryOptions = [rawCategory, ..._categories];
+    } else {
+      final titleMatch = _categories.cast<String?>().firstWhere(
+            (c) => c!.toLowerCase() == request.title.trim().toLowerCase(),
+            orElse: () => null,
+          );
+      _category = titleMatch;
+      _categoryOptions = List<String>.from(_categories);
+    }
+  }
+
+  @override
+  void dispose() {
+    _addressController.dispose();
+    _cityController.dispose();
+    _stateController.dispose();
+    _cepController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    final category = _category;
+    if (category == null || category.isEmpty) {
+      showAppSnackBar(context, 'Selecione o tipo de serviço');
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      await ClientRequestsStore.instance.update(
+        widget.request.id,
+        category: category,
+        description: _descriptionController.text.trim(),
+        address: _addressController.text.trim(),
+        city: _cityController.text.trim(),
+        state: _stateController.text.trim().toUpperCase(),
+        cep: _cepController.text.trim(),
+      );
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.displayMessage);
+    } catch (_) {
+      if (!mounted) return;
+      showAppSnackBar(context, 'Não foi possível salvar as alterações.');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Widget _fieldLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textPrimary,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.border,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Editar Serviço',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        onPressed:
+                            _saving ? null : () => Navigator.pop(context),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _fieldLabel('Endereço completo'),
+                  TextFormField(
+                    controller: _addressController,
+                    textInputAction: TextInputAction.next,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      hintText: 'Rua, número e bairro',
+                    ),
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Informe o endereço'
+                        : null,
+                  ),
+                  const SizedBox(height: 16),
+                  _fieldLabel('Cidade'),
+                  TextFormField(
+                    controller: _cityController,
+                    textInputAction: TextInputAction.next,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      hintText: 'Cidade',
+                    ),
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Informe a cidade'
+                        : null,
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _fieldLabel('Estado'),
+                            TextFormField(
+                              controller: _stateController,
+                              textCapitalization: TextCapitalization.characters,
+                              textInputAction: TextInputAction.next,
+                              maxLength: 2,
+                              decoration: const InputDecoration(
+                                hintText: 'UF',
+                                counterText: '',
+                              ),
+                              validator: (v) =>
+                                  (v == null || v.trim().length != 2)
+                                      ? 'UF inválida'
+                                      : null,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 5,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _fieldLabel('CEP'),
+                            TextFormField(
+                              controller: _cepController,
+                              keyboardType: TextInputType.number,
+                              textInputAction: TextInputAction.next,
+                              decoration: const InputDecoration(
+                                hintText: '00000-000',
+                              ),
+                              validator: (v) =>
+                                  (v == null || v.trim().length < 8)
+                                      ? 'CEP inválido'
+                                      : null,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _fieldLabel('Tipo de Serviço'),
+                  DropdownButtonFormField<String>(
+                    initialValue: _category,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      hintText: 'Selecione o tipo',
+                    ),
+                    items: _categoryOptions
+                        .map(
+                          (c) => DropdownMenuItem(
+                            value: c,
+                            child: Text(c),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: _saving
+                        ? null
+                        : (v) => setState(() => _category = v),
+                    validator: (v) =>
+                        v == null ? 'Selecione o tipo de serviço' : null,
+                  ),
+                  const SizedBox(height: 16),
+                  _fieldLabel('Descrição do problema'),
+                  TextFormField(
+                    controller: _descriptionController,
+                    minLines: 4,
+                    maxLines: 8,
+                    textInputAction: TextInputAction.newline,
+                    decoration: const InputDecoration(
+                      hintText: 'Descreva o problema ou o serviço desejado',
+                      alignLabelWithHint: true,
+                    ),
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Informe a descrição'
+                        : null,
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: _saving ? null : _save,
+                    child: _saving
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text('Salvar Alterações'),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton(
+                    onPressed: _saving ? null : () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textPrimary,
+                      side: const BorderSide(color: AppColors.border),
+                    ),
+                    child: const Text('Cancelar'),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

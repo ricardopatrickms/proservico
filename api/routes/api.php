@@ -24,6 +24,7 @@ Route::middleware('auth:api')->group(function () {
     Route::get('service-requests', [ServiceRequestController::class, 'index']);
     Route::post('service-requests', [ServiceRequestController::class, 'store']);
     Route::get('service-requests/{serviceRequest}', [ServiceRequestController::class, 'show']);
+    Route::put('service-requests/{serviceRequest}', [ServiceRequestController::class, 'update']);
     Route::patch('service-requests/{serviceRequest}/status', [ServiceRequestController::class, 'updateStatus']);
 
     Route::get('service-requests/{serviceRequest}/proposals', [ServiceProposalController::class, 'index']);
