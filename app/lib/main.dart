@@ -10,22 +10,10 @@ import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await _loadEnv();
+  await dotenv.load(fileName: '.env');
   await initializeDateFormatting('pt_BR');
   await SessionStore.instance.load();
   runApp(const ProServicoApp());
-}
-
-Future<void> _loadEnv() async {
-  try {
-    await dotenv.load(fileName: '.env');
-  } catch (_) {
-    try {
-      await dotenv.load(fileName: '.env.example');
-    } catch (e) {
-      debugPrint('Aviso: não foi possível carregar .env ($e)');
-    }
-  }
 }
 
 class ProServicoApp extends StatelessWidget {
@@ -34,7 +22,7 @@ class ProServicoApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Pro Serviço',
+      title: 'ProServico',
       debugShowCheckedModeBanner: false,
       navigatorKey: SessionExpiry.navigatorKey,
       theme: AppTheme.light,

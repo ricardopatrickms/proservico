@@ -12,7 +12,7 @@ class ApiClient {
   static final ApiClient instance = ApiClient._();
 
   Uri _uri(String path) {
-    final base = ApiConfig.baseUrl.replaceAll(RegExp(r'/$'), '');
+    final base = ApiConfig.baseUrl;
     final normalized = path.startsWith('/') ? path : '/$path';
     return Uri.parse('$base$normalized');
   }
