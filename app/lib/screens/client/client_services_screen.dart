@@ -839,7 +839,7 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
                   const SizedBox(height: 16),
                   _fieldLabel('Tipo de Serviço'),
                   DropdownButtonFormField<String>(
-                    initialValue: _category,
+                    value: _category,
                     isExpanded: true,
                     decoration: const InputDecoration(
                       hintText: 'Selecione o tipo',
