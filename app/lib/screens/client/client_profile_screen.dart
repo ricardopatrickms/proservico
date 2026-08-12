@@ -503,17 +503,12 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                               ],
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          OutlinedButton.icon(
+                          IconButton(
                             onPressed: () => _addOrEditAddress(existing: address),
-                            icon: const Icon(Icons.edit_outlined, size: 16),
-                            label: const Text('Editar'),
-                            style: OutlinedButton.styleFrom(
-                              visualDensity: VisualDensity.compact,
-                              padding: const EdgeInsets.symmetric(horizontal: 10),
-                            ),
+                            tooltip: 'Editar',
+                            visualDensity: VisualDensity.compact,
+                            icon: const Icon(Icons.edit_outlined),
                           ),
-                          const SizedBox(width: 4),
                           IconButton(
                             onPressed: () async {
                               setState(() {
@@ -522,6 +517,8 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                               });
                               await _persistAddresses();
                             },
+                            tooltip: 'Excluir',
+                            visualDensity: VisualDensity.compact,
                             icon: const Icon(Icons.delete_outline, color: AppColors.danger),
                           ),
                         ],
