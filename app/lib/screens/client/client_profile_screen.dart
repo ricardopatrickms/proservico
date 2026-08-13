@@ -49,7 +49,6 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
 
   bool _loading = false;
   bool _hasPhoto = false;
-  bool _professionalAccess = false;
   List<_SavedAddress> _addresses = [];
 
   String get _prefsKey {
@@ -305,62 +304,6 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
               style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 18),
-
-            // Gerenciar Acesso
-            _ProfileCard(
-              icon: Icons.swap_horiz,
-              title: 'Gerenciar Acesso',
-              child: Column(
-                children: [
-                  _AccessRow(
-                    icon: Icons.person_outline,
-                    title: 'Acesso como Cliente',
-                    subtitle: 'Sempre ativo - solicite serviços',
-                    trailing: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.border.withValues(alpha: 0.6),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Text(
-                        'Ativo',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const Divider(height: 24),
-                  _AccessRow(
-                    icon: Icons.work_outline,
-                    title: 'Acesso como Profissional',
-                    subtitle: 'Ofereça seus serviços na plataforma',
-                    trailing: Switch(
-                      value: _professionalAccess,
-                      onChanged: (v) {
-                        setState(() => _professionalAccess = v);
-                        showAppSnackBar(
-                          context,
-                          v
-                              ? 'Disponível em breve: cadastro dual'
-                              : 'Acesso profissional desativado',
-                        );
-                        if (v) {
-                          setState(() => _professionalAccess = false);
-                        }
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Com acesso dual, você pode solicitar e oferecer serviços na mesma conta.',
-                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.35),
-                  ),
-                ],
-              ),
-            ),
 
             // Informações Pessoais
             _ProfileCard(
@@ -646,43 +589,6 @@ class _ProfileCard extends StatelessWidget {
           child,
         ],
       ),
-    );
-  }
-}
-
-class _AccessRow extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Widget trailing;
-
-  const _AccessRow({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.trailing,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: AppColors.textSecondary),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-              Text(
-                subtitle,
-                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-              ),
-            ],
-          ),
-        ),
-        trailing,
-      ],
     );
   }
 }

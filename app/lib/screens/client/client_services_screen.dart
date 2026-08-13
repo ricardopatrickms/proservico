@@ -12,7 +12,9 @@ import '../professional/professional_request_detail_sheet.dart';
 import 'client_proposals_screen.dart';
 
 class ClientServicesScreen extends StatefulWidget {
-  const ClientServicesScreen({super.key});
+  final ValueChanged<ServiceRequest>? onOpenProposals;
+
+  const ClientServicesScreen({super.key, this.onOpenProposals});
 
   @override
   State<ClientServicesScreen> createState() => _ClientServicesScreenState();
@@ -110,6 +112,11 @@ class _ClientServicesScreenState extends State<ClientServicesScreen>
   }
 
   void _openProposalsPage(ServiceRequest request) {
+    final open = widget.onOpenProposals;
+    if (open != null) {
+      open(request);
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ClientProposalsScreen(request: request),

@@ -5,7 +5,7 @@ import '../../data/mock_store.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/service_cards.dart';
-import 'service_detail_screen.dart';
+import '../professional/professional_request_detail_sheet.dart';
 
 class ClientDashboardScreen extends StatefulWidget {
   final VoidCallback onRequestService;
@@ -46,20 +46,6 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> {
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: const Text('Painel Cliente'),
-        actions: [
-          IconButton(
-            tooltip: 'Notificações',
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Tudo em dia! Nenhuma ação pendente.'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
-            icon: const Icon(Icons.notifications_outlined),
-          ),
-        ],
       ),
       body: RefreshIndicator(
         onRefresh: _store.load,
@@ -173,44 +159,9 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> {
                 ..._store.requests.take(3).map(
                   (request) => ServiceRequestCard(
                     request: request,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ServiceDetailScreen(request: request),
-                        ),
-                      );
-                    },
+                    onTap: () => showProfessionalRequestDetail(context, request),
                   ),
                 ),
-              const SizedBox(height: 28),
-              const SectionHeader(title: 'Notificações'),
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppColors.success.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.success.withValues(alpha: 0.25)),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.check_circle, color: AppColors.success, size: 22),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Tudo em dia! Nenhuma ação pendente.',
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ],
           ],
         ),

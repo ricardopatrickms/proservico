@@ -10,7 +10,7 @@ import '../../services/api_exception.dart';
 import '../../services/service_request_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/helpers.dart';
-import 'service_detail_screen.dart';
+import '../professional/professional_request_detail_sheet.dart';
 
 class RequestServiceScreen extends StatefulWidget {
   final VoidCallback? onSubmitted;
@@ -249,11 +249,7 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
       );
       if (!mounted) return;
       widget.onSubmitted?.call();
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ServiceDetailScreen(request: created),
-        ),
-      );
+      await showProfessionalRequestDetail(context, created);
     } on ApiException catch (e) {
       if (!mounted) return;
       showAppSnackBar(context, e.displayMessage);

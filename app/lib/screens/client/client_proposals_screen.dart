@@ -116,6 +116,7 @@ class _ClientProposalsScreenState extends State<ClientProposalsScreen> {
       appBar: AppBar(
         title: const Text('Propostas Recebidas'),
         backgroundColor: AppColors.surface,
+        automaticallyImplyLeading: false,
       ),
       body: Stack(
         children: [

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
 import '../../widgets/brand_logo.dart';
-import '../shared/admin_shell.dart';
 import 'login_screen.dart';
 import 'professional_register_screen.dart';
 import 'register_screen.dart';
@@ -103,17 +102,6 @@ class WelcomeScreen extends StatelessWidget {
                           MaterialPageRoute(builder: (_) => const LoginScreen()),
                         );
                       },
-                    ),
-                    const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const AdminShell()),
-                        );
-                      },
-                      style: TextButton.styleFrom(foregroundColor: Colors.white60),
-                      child: const Text('Acesso administrativo'),
                     ),
                   ],
                 ),
