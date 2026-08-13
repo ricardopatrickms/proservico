@@ -6,7 +6,6 @@ import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_menu_screen.dart';
 import '../auth/welcome_screen.dart';
-import '../professional/professional_shell.dart';
 import 'client_dashboard_screen.dart';
 import 'client_profile_screen.dart';
 import 'client_proposals_screen.dart';
@@ -59,19 +58,6 @@ class _ClientShellState extends State<ClientShell> {
     );
   }
 
-  void _goHome() {
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const WelcomeScreen()),
-      (_) => false,
-    );
-  }
-
-  void _switchToProfessional() {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const ProfessionalShell()),
-    );
-  }
-
   void _openSettings() {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const SettingsScreen()),
@@ -117,18 +103,8 @@ class _ClientShellState extends State<ClientShell> {
           icon: Icons.settings_outlined,
           onTap: _openSettings,
         ),
-        AppMenuItem(
-          label: 'Painel Profissional',
-          icon: Icons.swap_horiz,
-          onTap: _switchToProfessional,
-        ),
       ],
       footerItems: [
-        AppMenuItem(
-          label: 'Voltar ao Início',
-          icon: Icons.home_outlined,
-          onTap: _goHome,
-        ),
         AppMenuItem(
           label: 'Sair',
           icon: Icons.logout,

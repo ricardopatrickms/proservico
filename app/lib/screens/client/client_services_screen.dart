@@ -7,6 +7,7 @@ import '../../services/api_exception.dart';
 import '../../services/service_request_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/helpers.dart';
+import '../../widgets/service_cards.dart';
 import '../professional/professional_request_detail_sheet.dart';
 import 'client_proposals_screen.dart';
 
@@ -50,13 +51,15 @@ class _ClientServicesScreenState extends State<ClientServicesScreen>
       )
       .toList();
 
-  List<ServiceRequest> get _history => _store.requests
-      .where(
-        (r) =>
-            r.status == ServiceStatus.completed ||
-            r.status == ServiceStatus.cancelled,
-      )
-      .toList();
+  List<ServiceRequest> get _history {
+    final items = [..._store.requests];
+    items.sort((a, b) {
+      final aDate = a.createdAt ?? a.scheduledAt;
+      final bDate = b.createdAt ?? b.scheduledAt;
+      return bDate.compareTo(aDate);
+    });
+    return items;
+  }
 
   String _shortDate(DateTime date) {
     return DateFormat('dd/MM/yyyy', 'pt_BR').format(date);
@@ -281,15 +284,23 @@ class _ClientServiceCard extends StatelessWidget {
             runSpacing: 6,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              _StatusPill(
-                label: hasProposals
-                    ? '${proposals.length} Proposta(s) Recebida(s)'
-                    : 'Aguardando',
-                background: hasProposals
-                    ? AppColors.primary
-                    : AppColors.warning,
-                foreground: hasProposals ? Colors.white : Colors.white,
-              ),
+              if (isHistory)
+                StatusBadge(status: request.status)
+              else
+                _StatusPill(
+                  label: hasProposals
+                      ? '${proposals.length} Proposta(s) Recebida(s)'
+                      : 'Aguardando',
+                  background:
+                      hasProposals ? AppColors.primary : AppColors.warning,
+                  foreground: Colors.white,
+                ),
+              if (isHistory && hasProposals)
+                _StatusPill(
+                  label: '${proposals.length} Proposta(s) Recebida(s)',
+                  background: AppColors.primary,
+                  foreground: Colors.white,
+                ),
               Text(
                 'Solicitado em $requestedAtLabel',
                 style: const TextStyle(
@@ -359,12 +370,12 @@ class _ClientServiceCard extends StatelessWidget {
             const SizedBox(height: 8),
             _ProposalPreview(proposal: preview),
           ],
-          if (!isHistory) ...[
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (!isHistory) ...[
                 _OutlineAction(
                   label: 'Editar',
                   icon: Icons.edit_outlined,
@@ -377,31 +388,32 @@ class _ClientServiceCard extends StatelessWidget {
                   color: AppColors.danger,
                   onTap: onCancel,
                 ),
-                if (hasProposals)
-                  _OutlineAction(
-                    label: 'Ver Todas as Propostas (${proposals.length})',
-                    icon: Icons.visibility_outlined,
-                    color: AppColors.primary,
-                    onTap: onViewProposals,
-                  ),
-                if (hasProposals)
+              ],
+              if (hasProposals) ...[
+                _OutlineAction(
+                  label: 'Ver Todas as Propostas (${proposals.length})',
+                  icon: Icons.visibility_outlined,
+                  color: AppColors.primary,
+                  onTap: onViewProposals,
+                ),
+                if (!isHistory)
                   _OutlineAction(
                     label: 'Ir para Propostas',
                     icon: Icons.chat_bubble_outline,
                     color: AppColors.success,
                     onTap: onGoToProposals,
                   ),
-                if (!hasProposals)
-                  _OutlineAction(
-                    label: 'Ver detalhes',
-                    icon: Icons.visibility_outlined,
-                    color: AppColors.textSecondary,
-                    borderColor: AppColors.border,
-                    onTap: onDetails,
-                  ),
               ],
-            ),
-          ],
+              if (isHistory || !hasProposals)
+                _OutlineAction(
+                  label: 'Ver detalhes',
+                  icon: Icons.visibility_outlined,
+                  color: AppColors.textSecondary,
+                  borderColor: AppColors.border,
+                  onTap: onDetails,
+                ),
+            ],
+          ),
         ],
       ),
     );

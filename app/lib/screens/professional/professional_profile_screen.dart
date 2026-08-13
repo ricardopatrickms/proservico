@@ -379,7 +379,7 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Acesso Duplo Ativo',
+                          'Acesso Profissional Ativo',
                           style: TextStyle(
                             fontWeight: FontWeight.w700,
                             color: Color(0xFF065F46),
@@ -387,18 +387,13 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
                         ),
                         SizedBox(height: 4),
                         Text(
-                          'Você pode alternar entre o Painel Cliente e o Painel Profissional.',
+                          'Você pode oferecer serviços na plataforma.',
                           style: TextStyle(fontSize: 12, color: Color(0xFF047857)),
                         ),
                       ],
                     ),
                   ),
                 ],
-                const SizedBox(height: 10),
-                const Text(
-                  'Dica: use o botão “Painel Cliente” na barra lateral para alternar.',
-                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                ),
               ],
             ),
           ),

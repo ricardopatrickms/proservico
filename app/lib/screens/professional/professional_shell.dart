@@ -5,11 +5,9 @@ import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_menu_screen.dart';
 import '../auth/welcome_screen.dart';
-import '../client/client_shell.dart';
 import 'professional_dashboard_screen.dart';
 import 'professional_history_screen.dart';
 import 'professional_in_progress_screen.dart';
-import 'professional_placeholder_screen.dart';
 import 'professional_profile_screen.dart';
 import 'professional_received_screen.dart';
 import 'professional_settings_screen.dart';
@@ -19,12 +17,7 @@ enum ProfessionalNav {
   received,
   inProgress,
   history,
-  reviews,
-  messages,
-  earnings,
-  simulator,
   profile,
-  help,
   settings,
 }
 
@@ -60,26 +53,6 @@ class _ProfessionalShellState extends State<ProfessionalShell> {
       ProfessionalNav.settings => const ProfessionalSettingsScreen(),
       ProfessionalNav.received => const ProfessionalReceivedScreen(),
       ProfessionalNav.inProgress => const ProfessionalInProgressScreen(),
-      ProfessionalNav.reviews => const ProfessionalPlaceholderScreen(
-          title: 'Avaliações',
-          subtitle: 'Disponível em um próximo módulo',
-        ),
-      ProfessionalNav.messages => const ProfessionalPlaceholderScreen(
-          title: 'Mensagens',
-          subtitle: 'Disponível em um próximo módulo',
-        ),
-      ProfessionalNav.earnings => const ProfessionalPlaceholderScreen(
-          title: 'Ganhos & Pagamentos',
-          subtitle: 'Disponível em um próximo módulo',
-        ),
-      ProfessionalNav.simulator => const ProfessionalPlaceholderScreen(
-          title: 'Simulador de Ganhos',
-          subtitle: 'Disponível em um próximo módulo',
-        ),
-      ProfessionalNav.help => const ProfessionalPlaceholderScreen(
-          title: 'Ajuda & Suporte',
-          subtitle: 'Central de ajuda em breve',
-        ),
     };
   }
 
@@ -89,19 +62,6 @@ class _ProfessionalShellState extends State<ProfessionalShell> {
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const WelcomeScreen()),
       (_) => false,
-    );
-  }
-
-  void _goHome() {
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const WelcomeScreen()),
-      (_) => false,
-    );
-  }
-
-  void _switchToClient() {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const ClientShell()),
     );
   }
 
@@ -116,11 +76,6 @@ class _ProfessionalShellState extends State<ProfessionalShell> {
         ProfessionalNav.profile => 3,
         ProfessionalNav.received ||
         ProfessionalNav.inProgress ||
-        ProfessionalNav.reviews ||
-        ProfessionalNav.messages ||
-        ProfessionalNav.earnings ||
-        ProfessionalNav.simulator ||
-        ProfessionalNav.help ||
         ProfessionalNav.settings =>
           1, // Dashboard como âncora visual; o body mostra a página escolhida
       };
@@ -172,52 +127,17 @@ class _ProfessionalShellState extends State<ProfessionalShell> {
           onTap: () => _selectNav(ProfessionalNav.history),
         ),
         AppMenuItem(
-          label: 'Avaliações',
-          icon: Icons.star_outline,
-          onTap: () => _selectNav(ProfessionalNav.reviews),
-        ),
-        AppMenuItem(
-          label: 'Mensagens',
-          icon: Icons.chat_bubble_outline,
-          onTap: () => _selectNav(ProfessionalNav.messages),
-        ),
-        AppMenuItem(
-          label: 'Ganhos & Pagamentos',
-          icon: Icons.attach_money,
-          onTap: () => _selectNav(ProfessionalNav.earnings),
-        ),
-        AppMenuItem(
-          label: 'Simulador de Ganhos',
-          icon: Icons.calculate_outlined,
-          onTap: () => _selectNav(ProfessionalNav.simulator),
-        ),
-        AppMenuItem(
           label: 'Meu Perfil',
           icon: Icons.person_outline,
           onTap: () => _selectNav(ProfessionalNav.profile),
-        ),
-        AppMenuItem(
-          label: 'Ajuda & Suporte',
-          icon: Icons.help_outline,
-          onTap: () => _selectNav(ProfessionalNav.help),
         ),
         AppMenuItem(
           label: 'Configurações',
           icon: Icons.settings_outlined,
           onTap: () => _selectNav(ProfessionalNav.settings),
         ),
-        AppMenuItem(
-          label: 'Painel Cliente',
-          icon: Icons.swap_horiz,
-          onTap: _switchToClient,
-        ),
       ],
       footerItems: [
-        AppMenuItem(
-          label: 'Voltar ao Início',
-          icon: Icons.home_outlined,
-          onTap: _goHome,
-        ),
         AppMenuItem(
           label: 'Sair',
           icon: Icons.logout,
@@ -244,8 +164,6 @@ class _ProfessionalShellState extends State<ProfessionalShell> {
                     userName: _userName,
                     initial: _initial,
                     onSelect: (n) => setState(() => _nav = n),
-                    onSwitchClient: _switchToClient,
-                    onHome: _goHome,
                     onLogout: _logout,
                   ),
                   Expanded(child: _pageFor(_nav)),
@@ -290,8 +208,6 @@ class _ProfessionalSidebar extends StatelessWidget {
   final String userName;
   final String initial;
   final ValueChanged<ProfessionalNav> onSelect;
-  final VoidCallback onSwitchClient;
-  final VoidCallback onHome;
   final VoidCallback onLogout;
 
   const _ProfessionalSidebar({
@@ -299,8 +215,6 @@ class _ProfessionalSidebar extends StatelessWidget {
     required this.userName,
     required this.initial,
     required this.onSelect,
-    required this.onSwitchClient,
-    required this.onHome,
     required this.onLogout,
   });
 
@@ -374,18 +288,6 @@ class _ProfessionalSidebar extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: onSwitchClient,
-                  icon: const Icon(Icons.swap_horiz, size: 18),
-                  label: const Text('Painel Cliente'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primary,
-                    side: const BorderSide(color: AppColors.primary),
-                    minimumSize: const Size.fromHeight(42),
-                    textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                  ),
-                ),
               ],
             ),
           ),
@@ -398,12 +300,7 @@ class _ProfessionalSidebar extends StatelessWidget {
                 _item(ProfessionalNav.received, Icons.assignment_outlined, 'Serviços Recebidos'),
                 _item(ProfessionalNav.inProgress, Icons.schedule_outlined, 'Serviços em Andamento'),
                 _item(ProfessionalNav.history, Icons.history, 'Histórico de Serviços'),
-                _item(ProfessionalNav.reviews, Icons.star_outline, 'Avaliações'),
-                _item(ProfessionalNav.messages, Icons.chat_bubble_outline, 'Mensagens'),
-                _item(ProfessionalNav.earnings, Icons.attach_money, 'Ganhos & Pagamentos'),
-                _item(ProfessionalNav.simulator, Icons.calculate_outlined, 'Simulador de Ganhos'),
                 _item(ProfessionalNav.profile, Icons.person_outline, 'Meu Perfil'),
-                _item(ProfessionalNav.help, Icons.help_outline, 'Ajuda & Suporte'),
                 _item(ProfessionalNav.settings, Icons.settings_outlined, 'Configurações'),
               ],
             ),
@@ -411,24 +308,14 @@ class _ProfessionalSidebar extends StatelessWidget {
           const Divider(height: 1),
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
-            child: Column(
-              children: [
-                ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.home_outlined, size: 20),
-                  title: const Text('Voltar ao Início', style: TextStyle(fontSize: 14)),
-                  onTap: onHome,
-                ),
-                ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.logout, size: 20, color: AppColors.danger),
-                  title: const Text(
-                    'Sair',
-                    style: TextStyle(fontSize: 14, color: AppColors.danger),
-                  ),
-                  onTap: onLogout,
-                ),
-              ],
+            child: ListTile(
+              dense: true,
+              leading: const Icon(Icons.logout, size: 20, color: AppColors.danger),
+              title: const Text(
+                'Sair',
+                style: TextStyle(fontSize: 14, color: AppColors.danger),
+              ),
+              onTap: onLogout,
             ),
           ),
         ],
