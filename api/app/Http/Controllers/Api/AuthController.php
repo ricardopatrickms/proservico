@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
@@ -173,7 +174,7 @@ class AuthController extends Controller
         /** @var User $user */
         $user = Auth::guard('api')->user();
 
-        return response()->json($user->load('professionalProfile'));
+        return response()->json($user->load(['professionalProfile', 'addresses']));
     }
 
     public function logout(): JsonResponse
@@ -198,23 +199,73 @@ class AuthController extends Controller
         /** @var User $user */
         $user = Auth::guard('api')->user();
 
+        if ($request->filled('phone')) {
+            $request->merge([
+                'phone' => preg_replace('/\D+/', '', (string) $request->input('phone')),
+            ]);
+        }
+
+        if ($request->has('service_areas') && is_string($request->input('service_areas'))) {
+            $decoded = json_decode($request->input('service_areas'), true);
+            if (is_array($decoded)) {
+                $request->merge(['service_areas' => $decoded]);
+            }
+        }
+
         $data = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
-            'phone' => ['sometimes', 'string', 'max:20'],
+            'email' => ['sometimes', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'phone' => ['sometimes', 'string', 'min:10', 'max:15'],
             'city' => ['nullable', 'string', 'max:255'],
             'bio' => ['nullable', 'string'],
             'password' => ['nullable', 'confirmed', Password::defaults()],
+            'profile_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:2048'],
+            'service_areas' => ['nullable', 'array'],
+            'service_areas.*' => ['string', 'max:255'],
+        ], [
+            'email.unique' => 'Este e-mail já está cadastrado.',
+            'phone.min' => 'Informe um telefone válido.',
+            'phone.max' => 'Informe um telefone válido.',
+            'profile_photo.max' => 'A foto deve ter no máximo 2MB.',
         ]);
 
         if (empty($data['password'])) {
             unset($data['password']);
         }
 
+        if ($request->hasFile('profile_photo')) {
+            if ($user->profile_photo) {
+                Storage::disk('public')->delete($user->profile_photo);
+            }
+
+            $folder = match ($user->type) {
+                'professional' => 'professionals/'.$user->id,
+                default => 'clients/'.$user->id,
+            };
+
+            $storedPhoto = $request->file('profile_photo')->store($folder.'/photos', 'public');
+            $data['profile_photo'] = $storedPhoto;
+
+            if ($user->isProfessional() && $user->professionalProfile) {
+                if ($user->professionalProfile->profile_photo) {
+                    Storage::disk('public')->delete($user->professionalProfile->profile_photo);
+                }
+                $user->professionalProfile->update(['profile_photo' => $storedPhoto]);
+            }
+        }
+
+        $serviceAreas = $data['service_areas'] ?? null;
+        unset($data['service_areas']);
+
         $user->update($data);
+
+        if ($user->isProfessional() && $serviceAreas !== null) {
+            $user->professionalProfile?->update(['service_areas' => array_values($serviceAreas)]);
+        }
 
         return response()->json([
             'message' => 'Perfil atualizado com sucesso',
-            'user' => $user->fresh()->load('professionalProfile'),
+            'user' => $user->fresh()->load(['professionalProfile', 'addresses']),
         ]);
     }
 

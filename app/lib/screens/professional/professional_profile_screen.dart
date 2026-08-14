@@ -1,40 +1,19 @@
-import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
 
+import '../../config/api_config.dart';
 import '../../data/mock_store.dart';
+import '../../models/user_address.dart';
+import '../../services/address_service.dart';
 import '../../services/api_exception.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/helpers.dart';
 import 'professional_placeholder_screen.dart';
 
-class _SavedAddress {
-  final String id;
-  final String label;
-  final String details;
-
-  const _SavedAddress({
-    required this.id,
-    required this.label,
-    required this.details,
-  });
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'label': label,
-        'details': details,
-      };
-
-  factory _SavedAddress.fromJson(Map<String, dynamic> json) {
-    return _SavedAddress(
-      id: json['id']?.toString() ?? '',
-      label: json['label']?.toString() ?? 'Endereço',
-      details: json['details']?.toString() ?? '',
-    );
-  }
-}
+enum _PickSource { camera, gallery }
 
 class ProfessionalProfileScreen extends StatefulWidget {
   const ProfessionalProfileScreen({super.key});
@@ -49,9 +28,12 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
   late final TextEditingController _phoneController;
 
   bool _loading = false;
-  bool _hasPhoto = false;
-  bool _professionalAccess = true;
-  List<_SavedAddress> _addresses = [];
+  bool _loadingProfile = true;
+  bool _loadingAddresses = true;
+  bool _savingAreas = false;
+  String? _pickedPhotoPath;
+  String? _existingPhotoUrl;
+  List<UserAddress> _addresses = [];
   final Set<String> _areas = {};
 
   static const _availableAreas = [
@@ -66,16 +48,6 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
     'Administrativos',
   ];
 
-  String get _prefsKey {
-    final id = MockStore.instance.currentUser?.id ?? 'guest';
-    return 'professional_addresses_$id';
-  }
-
-  String get _areasKey {
-    final id = MockStore.instance.currentUser?.id ?? 'guest';
-    return 'professional_areas_$id';
-  }
-
   @override
   void initState() {
     super.initState();
@@ -83,7 +55,10 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
     _nameController = TextEditingController(text: user?.name ?? '');
     _emailController = TextEditingController(text: user?.email ?? '');
     _phoneController = TextEditingController(text: user?.phone ?? '');
-    _loadLocal();
+    _existingPhotoUrl = user?.profilePhotoUrl;
+    _areas.addAll(user?.serviceAreas ?? const []);
+    _loadProfile();
+    _loadAddresses();
   }
 
   @override
@@ -94,45 +69,50 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
     super.dispose();
   }
 
-  Future<void> _loadLocal() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_prefsKey);
-    final areasRaw = prefs.getStringList(_areasKey) ?? [];
-    List<_SavedAddress> addresses;
-    if (raw == null || raw.isEmpty) {
-      addresses = const [
-        _SavedAddress(
-          id: '1',
-          label: 'Casa',
-          details: 'Rua das Flores, 123 - Campo Grande, MS | CEP: 79000-000',
-        ),
-      ];
-    } else {
-      addresses = (jsonDecode(raw) as List)
-          .whereType<Map<String, dynamic>>()
-          .map(_SavedAddress.fromJson)
-          .toList();
+  bool get _hasProfilePhoto =>
+      _pickedPhotoPath != null ||
+      (_existingPhotoUrl != null && _existingPhotoUrl!.isNotEmpty);
+
+  Future<void> _loadProfile() async {
+    setState(() => _loadingProfile = true);
+    try {
+      final user = await AuthService.instance.fetchMe();
+      if (!mounted) return;
+      _nameController.text = user.name;
+      _emailController.text = user.email;
+      _phoneController.text = user.phone;
+      setState(() {
+        _existingPhotoUrl = user.profilePhotoUrl;
+        _areas
+          ..clear()
+          ..addAll(user.serviceAreas);
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.displayMessage);
+    } catch (_) {
+      if (!mounted) return;
+      showAppSnackBar(context, 'Não foi possível carregar o perfil.');
+    } finally {
+      if (mounted) setState(() => _loadingProfile = false);
     }
-    if (!mounted) return;
-    setState(() {
-      _addresses = addresses;
-      _areas
-        ..clear()
-        ..addAll(areasRaw);
-    });
   }
 
-  Future<void> _persistAddresses() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      _prefsKey,
-      jsonEncode(_addresses.map((a) => a.toJson()).toList()),
-    );
-  }
-
-  Future<void> _persistAreas() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_areasKey, _areas.toList());
+  Future<void> _loadAddresses() async {
+    setState(() => _loadingAddresses = true);
+    try {
+      final addresses = await AddressService.instance.list();
+      if (!mounted) return;
+      setState(() => _addresses = addresses);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.displayMessage);
+    } catch (_) {
+      if (!mounted) return;
+      showAppSnackBar(context, 'Não foi possível carregar os endereços.');
+    } finally {
+      if (mounted) setState(() => _loadingAddresses = false);
+    }
   }
 
   String _initials(String name) {
@@ -142,49 +122,158 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
     return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
   }
 
+  Future<_PickSource?> _askPickSource() {
+    return showModalBottomSheet<_PickSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Como deseja enviar?',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo_camera_outlined, color: AppColors.primary),
+                  title: const Text('Câmera'),
+                  subtitle: const Text('Tirar uma foto agora'),
+                  onTap: () => Navigator.pop(context, _PickSource.camera),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo_outlined, color: AppColors.primary),
+                  title: const Text('Galeria'),
+                  subtitle: const Text('Selecionar imagem da galeria'),
+                  onTap: () => Navigator.pop(context, _PickSource.gallery),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickPhoto() async {
+    final source = await _askPickSource();
+    if (source == null || !mounted) return;
+
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    if (!mounted) return;
+
+    try {
+      final image = await ImagePicker().pickImage(
+        source: source == _PickSource.camera ? ImageSource.camera : ImageSource.gallery,
+        imageQuality: 85,
+        maxWidth: 2000,
+        requestFullMetadata: false,
+      );
+      if (image == null) return;
+
+      final size = await File(image.path).length();
+      if (size > 2 * 1024 * 1024) {
+        if (!mounted) return;
+        showAppSnackBar(context, 'A foto deve ter no máximo 2MB.');
+        return;
+      }
+
+      setState(() => _pickedPhotoPath = image.path);
+    } catch (_) {
+      if (!mounted) return;
+      showAppSnackBar(context, 'Não foi possível selecionar a foto.');
+    }
+  }
+
+  Widget _buildAvatar(String name) {
+    if (_pickedPhotoPath != null) {
+      return CircleAvatar(
+        radius: 36,
+        backgroundImage: FileImage(File(_pickedPhotoPath!)),
+      );
+    }
+
+    if (_existingPhotoUrl != null && _existingPhotoUrl!.isNotEmpty) {
+      return CircleAvatar(
+        radius: 36,
+        backgroundImage: NetworkImage(
+          ApiConfig.resolveStorageUrl(_existingPhotoUrl!),
+        ),
+      );
+    }
+
+    return CircleAvatar(
+      radius: 36,
+      backgroundColor: AppColors.primary.withValues(alpha: 0.15),
+      child: Text(
+        _initials(name),
+        style: const TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w800,
+          color: AppColors.primary,
+        ),
+      ),
+    );
+  }
+
   Future<void> _saveProfile() async {
     if (_loading) return;
-    if (!_hasPhoto) {
+
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final phone = _phoneController.text.trim();
+
+    if (name.isEmpty) {
+      showAppSnackBar(context, 'Informe o nome completo');
+      return;
+    }
+    if (!email.contains('@')) {
+      showAppSnackBar(context, 'Informe um e-mail válido');
+      return;
+    }
+    if (!_hasProfilePhoto) {
       showAppSnackBar(context, 'Foto de perfil é obrigatória');
       return;
     }
+
     setState(() => _loading = true);
     try {
       final user = await AuthService.instance.updateProfile(
-        name: _nameController.text.trim(),
-        phone: _phoneController.text.trim(),
+        name: name,
+        email: email,
+        phone: phone,
         city: MockStore.instance.currentUser?.city,
+        profilePhotoPath: _pickedPhotoPath,
       );
       if (!mounted) return;
       _nameController.text = user.name;
       _emailController.text = user.email;
       _phoneController.text = user.phone;
+      setState(() {
+        _existingPhotoUrl = user.profilePhotoUrl;
+        _pickedPhotoPath = null;
+      });
       showAppSnackBar(context, 'Perfil atualizado');
-      setState(() {});
     } on ApiException catch (e) {
       if (!mounted) return;
       showAppSnackBar(context, e.displayMessage);
     } catch (_) {
-      // Fallback mock se API falhar
-      final user = MockStore.instance.currentUser;
-      if (user != null) {
-        MockStore.instance.updateCurrentUser(
-          user.copyWith(
-            name: _nameController.text.trim(),
-            email: _emailController.text.trim(),
-            phone: _phoneController.text.trim(),
-          ),
-        );
-      }
       if (!mounted) return;
-      showAppSnackBar(context, 'Perfil atualizado');
-      setState(() {});
+      showAppSnackBar(context, 'Não foi possível atualizar o perfil.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  Future<void> _addOrEditAddress({_SavedAddress? existing}) async {
+  Future<void> _addOrEditAddress({UserAddress? existing}) async {
     final labelCtrl = TextEditingController(text: existing?.label ?? '');
     final detailsCtrl = TextEditingController(text: existing?.details ?? '');
 
@@ -226,27 +315,53 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
       return;
     }
 
-    setState(() {
+    try {
       if (existing == null) {
-        _addresses = [
-          ..._addresses,
-          _SavedAddress(
-            id: DateTime.now().millisecondsSinceEpoch.toString(),
-            label: label,
-            details: details,
-          ),
-        ];
+        final created = await AddressService.instance.create(
+          label: label,
+          details: details,
+        );
+        if (!mounted) return;
+        setState(() => _addresses = [..._addresses, created]);
       } else {
-        _addresses = _addresses
-            .map(
-              (a) => a.id == existing.id
-                  ? _SavedAddress(id: a.id, label: label, details: details)
-                  : a,
-            )
-            .toList();
+        final updated = await AddressService.instance.update(
+          id: existing.id,
+          label: label,
+          details: details,
+        );
+        if (!mounted) return;
+        setState(() {
+          _addresses = _addresses
+              .map((a) => a.id == existing.id ? updated : a)
+              .toList();
+        });
       }
-    });
-    await _persistAddresses();
+      if (!mounted) return;
+      showAppSnackBar(context, 'Endereço salvo');
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.displayMessage);
+    } catch (_) {
+      if (!mounted) return;
+      showAppSnackBar(context, 'Não foi possível salvar o endereço.');
+    }
+  }
+
+  Future<void> _deleteAddress(UserAddress address) async {
+    try {
+      await AddressService.instance.delete(address.id);
+      if (!mounted) return;
+      setState(() {
+        _addresses = _addresses.where((a) => a.id != address.id).toList();
+      });
+      showAppSnackBar(context, 'Endereço removido');
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.displayMessage);
+    } catch (_) {
+      if (!mounted) return;
+      showAppSnackBar(context, 'Não foi possível remover o endereço.');
+    }
   }
 
   Future<void> _changePassword() async {
@@ -303,18 +418,38 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
       showAppSnackBar(context, e.displayMessage);
     } catch (_) {
       if (!mounted) return;
-      showAppSnackBar(context, 'Senha atualizada localmente');
+      showAppSnackBar(context, 'Não foi possível alterar a senha');
     }
   }
 
   Future<void> _saveAreas() async {
+    if (_savingAreas) return;
     if (_areas.isEmpty) {
       showAppSnackBar(context, 'Selecione ao menos uma área de atuação');
       return;
     }
-    await _persistAreas();
-    if (!mounted) return;
-    showAppSnackBar(context, 'Áreas de atuação salvas');
+
+    setState(() => _savingAreas = true);
+    try {
+      final user = await AuthService.instance.updateProfile(
+        name: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        phone: _phoneController.text.trim(),
+        city: MockStore.instance.currentUser?.city,
+        serviceAreas: _areas.toList(),
+      );
+      if (!mounted) return;
+      setState(() => _areas..clear()..addAll(user.serviceAreas));
+      showAppSnackBar(context, 'Áreas de atuação salvas');
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.displayMessage);
+    } catch (_) {
+      if (!mounted) return;
+      showAppSnackBar(context, 'Não foi possível salvar as áreas.');
+    } finally {
+      if (mounted) setState(() => _savingAreas = false);
+    }
   }
 
   @override
@@ -323,6 +458,14 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
         ? (MockStore.instance.currentUser?.name ?? 'Profissional')
         : _nameController.text.trim();
 
+    if (_loadingProfile) {
+      return const ProfessionalPageScaffold(
+        title: 'Meu Perfil',
+        subtitle: 'Gerencie suas informações pessoais',
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return ProfessionalPageScaffold(
       title: 'Meu Perfil',
       subtitle: 'Gerencie suas informações pessoais',
@@ -330,100 +473,17 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
         children: [
           _Card(
-            icon: Icons.swap_horiz,
-            title: 'Gerenciar Acesso',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _AccessRow(
-                  icon: Icons.person_outline,
-                  title: 'Acesso como Cliente',
-                  subtitle: 'Sempre ativo - solicite serviços',
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.border.withValues(alpha: 0.6),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text(
-                      'Ativo',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ),
-                ),
-                const Divider(height: 24),
-                _AccessRow(
-                  icon: Icons.work_outline,
-                  title: 'Acesso como Profissional',
-                  subtitle: 'Ofereça seus serviços na plataforma',
-                  trailing: Switch(
-                    value: _professionalAccess,
-                    onChanged: (v) => setState(() => _professionalAccess = v),
-                  ),
-                ),
-                if (_professionalAccess) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFECFDF5),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFA7F3D0)),
-                    ),
-                    child: const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Acesso Profissional Ativo',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF065F46),
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Você pode oferecer serviços na plataforma.',
-                          style: TextStyle(fontSize: 12, color: Color(0xFF047857)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          _Card(
             icon: Icons.badge_outlined,
             title: 'Informações Pessoais',
             child: Column(
               children: [
                 Row(
                   children: [
-                    CircleAvatar(
-                      radius: 36,
-                      backgroundColor: AppColors.primary.withValues(alpha: 0.15),
-                      child: Text(
-                        _initials(name),
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    ),
+                    _buildAvatar(name),
                     const SizedBox(width: 16),
                     Flexible(
                       child: OutlinedButton.icon(
-                        onPressed: () {
-                          setState(() => _hasPhoto = true);
-                          showAppSnackBar(context, 'Foto adicionada (mock)');
-                        },
+                        onPressed: _pickPhoto,
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(0, 40),
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -431,12 +491,12 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
                           visualDensity: VisualDensity.compact,
                         ),
                         icon: const Icon(Icons.photo_camera_outlined, size: 18),
-                        label: const Text('Adicionar Foto'),
+                        label: Text(_hasProfilePhoto ? 'Trocar Foto' : 'Adicionar Foto'),
                       ),
                     ),
                   ],
                 ),
-                if (!_hasPhoto) ...[
+                if (!_hasProfilePhoto) ...[
                   const SizedBox(height: 8),
                   const Align(
                     alignment: Alignment.centerLeft,
@@ -458,6 +518,7 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(
                     labelText: 'E-mail',
                     helperText: 'Ao alterar o email, você receberá um link de confirmação',
@@ -494,60 +555,73 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
           _Card(
             icon: Icons.location_on_outlined,
             title: 'Endereços Salvos',
-            child: Column(
-              children: [
-                ..._addresses.map(
-                  (a) => Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.background,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.place_outlined, color: AppColors.primary),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+            child: _loadingAddresses
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                : Column(
+                    children: [
+                      if (_addresses.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            'Nenhum endereço salvo ainda.',
+                            style: TextStyle(color: AppColors.textSecondary),
+                          ),
+                        ),
+                      ..._addresses.map(
+                        (a) => Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.background,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Row(
                             children: [
-                              Text(a.label, style: const TextStyle(fontWeight: FontWeight.w700)),
-                              const SizedBox(height: 2),
-                              Text(
-                                a.details,
-                                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                              const Icon(Icons.place_outlined, color: AppColors.primary),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(a.label, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      a.details,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () => _addOrEditAddress(existing: a),
+                                child: const Text('Editar'),
+                              ),
+                              IconButton(
+                                onPressed: () => _deleteAddress(a),
+                                icon: const Icon(Icons.delete_outline, color: AppColors.danger),
                               ),
                             ],
                           ),
                         ),
-                        TextButton(
-                          onPressed: () => _addOrEditAddress(existing: a),
-                          child: const Text('Editar'),
+                      ),
+                      OutlinedButton(
+                        onPressed: () => _addOrEditAddress(),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.textPrimary,
+                          side: const BorderSide(color: AppColors.border),
+                          minimumSize: const Size(double.infinity, 46),
                         ),
-                        IconButton(
-                          onPressed: () async {
-                            setState(() => _addresses = _addresses.where((x) => x.id != a.id).toList());
-                            await _persistAddresses();
-                          },
-                          icon: const Icon(Icons.delete_outline, color: AppColors.danger),
-                        ),
-                      ],
-                    ),
+                        child: const Text('+ Adicionar Novo Endereço'),
+                      ),
+                    ],
                   ),
-                ),
-                OutlinedButton(
-                  onPressed: () => _addOrEditAddress(),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.textPrimary,
-                    side: const BorderSide(color: AppColors.border),
-                    minimumSize: const Size(double.infinity, 46),
-                  ),
-                  child: const Text('+ Adicionar Novo Endereço'),
-                ),
-              ],
-            ),
           ),
           const SizedBox(height: 16),
           _Card(
@@ -627,8 +701,14 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: _saveAreas,
-                    icon: const Icon(Icons.save_outlined),
+                    onPressed: _savingAreas ? null : _saveAreas,
+                    icon: _savingAreas
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.save_outlined),
                     label: const Text('Salvar Alterações'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.textPrimary,
@@ -682,41 +762,6 @@ class _Card extends StatelessWidget {
           child,
         ],
       ),
-    );
-  }
-}
-
-class _AccessRow extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Widget trailing;
-
-  const _AccessRow({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.trailing,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: AppColors.textSecondary),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-              const SizedBox(height: 2),
-              Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-            ],
-          ),
-        ),
-        trailing,
-      ],
     );
   }
 }

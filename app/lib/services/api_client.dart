@@ -64,6 +64,31 @@ class ApiClient {
     return _decodeMap(response, auth: auth, path: path);
   }
 
+  Future<Map<String, dynamic>> patch(
+    String path, {
+    Map<String, dynamic>? body,
+    bool auth = false,
+  }) async {
+    final response = await _send(
+      () => http.patch(
+        _uri(path),
+        headers: _headers(auth: auth),
+        body: body == null ? null : jsonEncode(body),
+      ),
+    );
+    return _decodeMap(response, auth: auth, path: path);
+  }
+
+  Future<Map<String, dynamic>> delete(
+    String path, {
+    bool auth = false,
+  }) async {
+    final response = await _send(
+      () => http.delete(_uri(path), headers: _headers(auth: auth)),
+    );
+    return _decodeMap(response, auth: auth, path: path);
+  }
+
   Future<Map<String, dynamic>> postMultipart(
     String path, {
     required Map<String, String> fields,
@@ -96,6 +121,30 @@ class ApiClient {
     return _decodeMap(response, auth: auth, path: path);
   }
 
+  Future<Map<String, dynamic>> putMultipart(
+    String path, {
+    required Map<String, String> fields,
+    Map<String, String> files = const {},
+    bool auth = false,
+  }) async {
+    final request = http.MultipartRequest('POST', _uri(path));
+    request.headers['Accept'] = 'application/json';
+    final token = SessionStore.instance.accessToken;
+    if (auth && token != null && token.isNotEmpty) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+    request.fields.addAll({...fields, '_method': 'PUT'});
+    for (final entry in files.entries) {
+      request.files.add(await http.MultipartFile.fromPath(entry.key, entry.value));
+    }
+
+    final response = await _send(() async {
+      final streamed = await request.send();
+      return http.Response.fromStream(streamed);
+    }, timeout: const Duration(seconds: 60));
+    return _decodeMap(response, auth: auth, path: path);
+  }
+
   Future<Map<String, dynamic>> put(
     String path, {
     Map<String, dynamic>? body,
@@ -103,21 +152,6 @@ class ApiClient {
   }) async {
     final response = await _send(
       () => http.put(
-        _uri(path),
-        headers: _headers(auth: auth),
-        body: body == null ? null : jsonEncode(body),
-      ),
-    );
-    return _decodeMap(response, auth: auth, path: path);
-  }
-
-  Future<Map<String, dynamic>> patch(
-    String path, {
-    Map<String, dynamic>? body,
-    bool auth = false,
-  }) async {
-    final response = await _send(
-      () => http.patch(
         _uri(path),
         headers: _headers(auth: auth),
         body: body == null ? null : jsonEncode(body),

@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProfessionalServiceController;
 use App\Http\Controllers\Api\ServiceProposalController;
 use App\Http\Controllers\Api\ServiceRequestController;
+use App\Http\Controllers\Api\UserAddressController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function () {
@@ -30,6 +31,11 @@ Route::middleware('auth:api')->group(function () {
     Route::get('service-requests/{serviceRequest}/proposals', [ServiceProposalController::class, 'index']);
     Route::post('service-requests/{serviceRequest}/proposals', [ServiceProposalController::class, 'store']);
     Route::patch('service-requests/{serviceRequest}/proposals/{proposal}/status', [ServiceProposalController::class, 'updateStatus']);
+
+    Route::get('user-addresses', [UserAddressController::class, 'index']);
+    Route::post('user-addresses', [UserAddressController::class, 'store']);
+    Route::put('user-addresses/{userAddress}', [UserAddressController::class, 'update']);
+    Route::delete('user-addresses/{userAddress}', [UserAddressController::class, 'destroy']);
 
     Route::get('professional-services', [ProfessionalServiceController::class, 'index']);
     Route::post('professional-services', [ProfessionalServiceController::class, 'store']);

@@ -1,39 +1,18 @@
-import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
 
+import '../../config/api_config.dart';
 import '../../data/mock_store.dart';
+import '../../models/user_address.dart';
+import '../../services/address_service.dart';
 import '../../services/api_exception.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/helpers.dart';
 
-class _SavedAddress {
-  final String id;
-  final String label;
-  final String details;
-
-  const _SavedAddress({
-    required this.id,
-    required this.label,
-    required this.details,
-  });
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'label': label,
-        'details': details,
-      };
-
-  factory _SavedAddress.fromJson(Map<String, dynamic> json) {
-    return _SavedAddress(
-      id: json['id']?.toString() ?? '',
-      label: json['label']?.toString() ?? 'Endereço',
-      details: json['details']?.toString() ?? '',
-    );
-  }
-}
+enum _PickSource { camera, gallery }
 
 class ClientProfileScreen extends StatefulWidget {
   const ClientProfileScreen({super.key});
@@ -48,13 +27,10 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
   late final TextEditingController _phoneController;
 
   bool _loading = false;
-  bool _hasPhoto = false;
-  List<_SavedAddress> _addresses = [];
-
-  String get _prefsKey {
-    final id = MockStore.instance.currentUser?.id ?? 'guest';
-    return 'client_addresses_$id';
-  }
+  bool _loadingAddresses = true;
+  String? _pickedPhotoPath;
+  String? _existingPhotoUrl;
+  List<UserAddress> _addresses = [];
 
   @override
   void initState() {
@@ -63,6 +39,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
     _nameController = TextEditingController(text: user.name);
     _emailController = TextEditingController(text: user.email);
     _phoneController = TextEditingController(text: user.phone);
+    _existingPhotoUrl = user.profilePhotoUrl;
     _loadAddresses();
   }
 
@@ -74,34 +51,25 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
     super.dispose();
   }
 
-  Future<void> _loadAddresses() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_prefsKey);
-    if (raw == null || raw.isEmpty) {
-      setState(() {
-        _addresses = const [
-          _SavedAddress(
-            id: '1',
-            label: 'Casa',
-            details: 'Rua das Flores, 123 - Campo Grande, MS | CEP: 79000-000',
-          ),
-        ];
-      });
-      return;
-    }
-    final list = (jsonDecode(raw) as List)
-        .whereType<Map<String, dynamic>>()
-        .map(_SavedAddress.fromJson)
-        .toList();
-    if (mounted) setState(() => _addresses = list);
-  }
+  bool get _hasProfilePhoto =>
+      _pickedPhotoPath != null ||
+      (_existingPhotoUrl != null && _existingPhotoUrl!.isNotEmpty);
 
-  Future<void> _persistAddresses() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      _prefsKey,
-      jsonEncode(_addresses.map((a) => a.toJson()).toList()),
-    );
+  Future<void> _loadAddresses() async {
+    setState(() => _loadingAddresses = true);
+    try {
+      final addresses = await AddressService.instance.list();
+      if (!mounted) return;
+      setState(() => _addresses = addresses);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.displayMessage);
+    } catch (_) {
+      if (!mounted) return;
+      showAppSnackBar(context, 'Não foi possível carregar os endereços.');
+    } finally {
+      if (mounted) setState(() => _loadingAddresses = false);
+    }
   }
 
   String _initials(String name) {
@@ -112,25 +80,146 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
     return '${list.first[0]}${list.last[0]}'.toUpperCase();
   }
 
+  Future<_PickSource?> _askPickSource() {
+    return showModalBottomSheet<_PickSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Como deseja enviar?',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo_camera_outlined, color: AppColors.primary),
+                  title: const Text('Câmera'),
+                  subtitle: const Text('Tirar uma foto agora'),
+                  onTap: () => Navigator.pop(context, _PickSource.camera),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo_outlined, color: AppColors.primary),
+                  title: const Text('Galeria'),
+                  subtitle: const Text('Selecionar imagem da galeria'),
+                  onTap: () => Navigator.pop(context, _PickSource.gallery),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickPhoto() async {
+    final source = await _askPickSource();
+    if (source == null || !mounted) return;
+
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    if (!mounted) return;
+
+    try {
+      final image = await ImagePicker().pickImage(
+        source: source == _PickSource.camera ? ImageSource.camera : ImageSource.gallery,
+        imageQuality: 85,
+        maxWidth: 2000,
+        requestFullMetadata: false,
+      );
+      if (image == null) return;
+
+      final size = await File(image.path).length();
+      if (size > 2 * 1024 * 1024) {
+        if (!mounted) return;
+        showAppSnackBar(context, 'A foto deve ter no máximo 2MB.');
+        return;
+      }
+
+      setState(() => _pickedPhotoPath = image.path);
+    } catch (_) {
+      if (!mounted) return;
+      showAppSnackBar(context, 'Não foi possível selecionar a foto.');
+    }
+  }
+
+  Widget _buildAvatar(String name) {
+    if (_pickedPhotoPath != null) {
+      return CircleAvatar(
+        radius: 36,
+        backgroundImage: FileImage(File(_pickedPhotoPath!)),
+      );
+    }
+
+    if (_existingPhotoUrl != null && _existingPhotoUrl!.isNotEmpty) {
+      return CircleAvatar(
+        radius: 36,
+        backgroundImage: NetworkImage(
+          ApiConfig.resolveStorageUrl(_existingPhotoUrl!),
+        ),
+      );
+    }
+
+    return CircleAvatar(
+      radius: 36,
+      backgroundColor: AppColors.primary.withValues(alpha: 0.15),
+      child: Text(
+        _initials(name),
+        style: const TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w800,
+          color: AppColors.primary,
+        ),
+      ),
+    );
+  }
+
   Future<void> _save() async {
     if (_loading) return;
-    if (!_hasPhoto) {
+
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final phone = _phoneController.text.trim();
+
+    if (name.isEmpty) {
+      showAppSnackBar(context, 'Informe o nome completo');
+      return;
+    }
+    if (!email.contains('@')) {
+      showAppSnackBar(context, 'Informe um e-mail válido');
+      return;
+    }
+    if (!_hasProfilePhoto) {
       showAppSnackBar(context, 'Foto de perfil é obrigatória');
       return;
     }
+
     setState(() => _loading = true);
     try {
       final user = await AuthService.instance.updateProfile(
-        name: _nameController.text.trim(),
-        phone: _phoneController.text.trim(),
+        name: name,
+        email: email,
+        phone: phone,
         city: MockStore.instance.currentUser?.city,
+        profilePhotoPath: _pickedPhotoPath,
       );
       if (!mounted) return;
       _nameController.text = user.name;
       _emailController.text = user.email;
       _phoneController.text = user.phone;
+      setState(() {
+        _existingPhotoUrl = user.profilePhotoUrl;
+        _pickedPhotoPath = null;
+      });
       showAppSnackBar(context, 'Perfil atualizado');
-      setState(() {});
     } on ApiException catch (e) {
       if (!mounted) return;
       showAppSnackBar(context, e.displayMessage);
@@ -142,7 +231,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
     }
   }
 
-  Future<void> _addOrEditAddress({_SavedAddress? existing}) async {
+  Future<void> _addOrEditAddress({UserAddress? existing}) async {
     final labelCtrl = TextEditingController(text: existing?.label ?? '');
     final detailsCtrl = TextEditingController(text: existing?.details ?? '');
 
@@ -190,27 +279,53 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
       return;
     }
 
-    setState(() {
+    try {
       if (existing == null) {
-        _addresses = [
-          ..._addresses,
-          _SavedAddress(
-            id: DateTime.now().millisecondsSinceEpoch.toString(),
-            label: label,
-            details: details,
-          ),
-        ];
+        final created = await AddressService.instance.create(
+          label: label,
+          details: details,
+        );
+        if (!mounted) return;
+        setState(() => _addresses = [..._addresses, created]);
       } else {
-        _addresses = _addresses
-            .map(
-              (a) => a.id == existing.id
-                  ? _SavedAddress(id: a.id, label: label, details: details)
-                  : a,
-            )
-            .toList();
+        final updated = await AddressService.instance.update(
+          id: existing.id,
+          label: label,
+          details: details,
+        );
+        if (!mounted) return;
+        setState(() {
+          _addresses = _addresses
+              .map((a) => a.id == existing.id ? updated : a)
+              .toList();
+        });
       }
-    });
-    await _persistAddresses();
+      if (!mounted) return;
+      showAppSnackBar(context, 'Endereço salvo');
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.displayMessage);
+    } catch (_) {
+      if (!mounted) return;
+      showAppSnackBar(context, 'Não foi possível salvar o endereço.');
+    }
+  }
+
+  Future<void> _deleteAddress(UserAddress address) async {
+    try {
+      await AddressService.instance.delete(address.id);
+      if (!mounted) return;
+      setState(() {
+        _addresses = _addresses.where((a) => a.id != address.id).toList();
+      });
+      showAppSnackBar(context, 'Endereço removido');
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.displayMessage);
+    } catch (_) {
+      if (!mounted) return;
+      showAppSnackBar(context, 'Não foi possível remover o endereço.');
+    }
   }
 
   Future<void> _changePassword() async {
@@ -304,8 +419,6 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
               style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 18),
-
-            // Informações Pessoais
             _ProfileCard(
               icon: Icons.person_outline,
               title: 'Informações Pessoais',
@@ -314,37 +427,25 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                 children: [
                   Row(
                     children: [
-                      CircleAvatar(
-                        radius: 36,
-                        backgroundColor: AppColors.primary.withValues(alpha: 0.15),
-                        child: Text(
-                          _initials(name),
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                      ),
+                      _buildAvatar(name),
                       const SizedBox(width: 14),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             OutlinedButton.icon(
-                              onPressed: () {
-                                setState(() => _hasPhoto = true);
-                                showAppSnackBar(context, 'Foto adicionada (simulado)');
-                              },
+                              onPressed: _pickPhoto,
                               icon: const Icon(Icons.photo_camera_outlined, size: 18),
-                              label: Text(_hasPhoto ? 'Trocar Foto' : 'Adicionar Foto'),
+                              label: Text(_hasProfilePhoto ? 'Trocar Foto' : 'Adicionar Foto'),
                             ),
                             const SizedBox(height: 6),
                             Text(
                               '* Foto de perfil é obrigatória',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: _hasPhoto ? AppColors.textSecondary : AppColors.danger,
+                                color: _hasProfilePhoto
+                                    ? AppColors.textSecondary
+                                    : AppColors.danger,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -364,7 +465,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                   _fieldLabel('E-mail'),
                   TextField(
                     controller: _emailController,
-                    readOnly: true,
+                    keyboardType: TextInputType.emailAddress,
                     decoration: const InputDecoration(hintText: 'seu@email.com'),
                   ),
                   const SizedBox(height: 6),
@@ -406,86 +507,89 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                 ],
               ),
             ),
-
-            // Endereços
             _ProfileCard(
               icon: Icons.list_alt_outlined,
               title: 'Endereços Salvos',
-              child: Column(
-                children: [
-                  for (final address in _addresses) ...[
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.border),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(Icons.place_outlined, color: AppColors.primary),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
+              child: _loadingAddresses
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  : Column(
+                      children: [
+                        if (_addresses.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.only(bottom: 12),
+                            child: Text(
+                              'Nenhum endereço salvo ainda.',
+                              style: TextStyle(color: AppColors.textSecondary),
+                            ),
+                          ),
+                        for (final address in _addresses) ...[
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  address.label,
-                                  style: const TextStyle(fontWeight: FontWeight.w800),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  address.details,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    color: AppColors.textSecondary,
-                                    height: 1.35,
+                                const Icon(Icons.place_outlined, color: AppColors.primary),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        address.label,
+                                        style: const TextStyle(fontWeight: FontWeight.w800),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        address.details,
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          color: AppColors.textSecondary,
+                                          height: 1.35,
+                                        ),
+                                      ),
+                                    ],
                                   ),
+                                ),
+                                IconButton(
+                                  onPressed: () => _addOrEditAddress(existing: address),
+                                  tooltip: 'Editar',
+                                  visualDensity: VisualDensity.compact,
+                                  icon: const Icon(Icons.edit_outlined),
+                                ),
+                                IconButton(
+                                  onPressed: () => _deleteAddress(address),
+                                  tooltip: 'Excluir',
+                                  visualDensity: VisualDensity.compact,
+                                  icon: const Icon(Icons.delete_outline, color: AppColors.danger),
                                 ),
                               ],
                             ),
                           ),
-                          IconButton(
-                            onPressed: () => _addOrEditAddress(existing: address),
-                            tooltip: 'Editar',
-                            visualDensity: VisualDensity.compact,
-                            icon: const Icon(Icons.edit_outlined),
-                          ),
-                          IconButton(
-                            onPressed: () async {
-                              setState(() {
-                                _addresses =
-                                    _addresses.where((a) => a.id != address.id).toList();
-                              });
-                              await _persistAddresses();
-                            },
-                            tooltip: 'Excluir',
-                            visualDensity: VisualDensity.compact,
-                            icon: const Icon(Icons.delete_outline, color: AppColors.danger),
-                          ),
+                          const SizedBox(height: 10),
                         ],
-                      ),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton(
+                            onPressed: () => _addOrEditAddress(),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.primary,
+                              side: const BorderSide(color: AppColors.primary),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            child: const Text('+ Adicionar Novo Endereço'),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 10),
-                  ],
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () => _addOrEditAddress(),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primary,
-                        side: const BorderSide(color: AppColors.primary),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: const Text('+ Adicionar Novo Endereço'),
-                    ),
-                  ),
-                ],
-              ),
             ),
-
-            // Segurança
             _ProfileCard(
               icon: Icons.shield_outlined,
               title: 'Segurança',

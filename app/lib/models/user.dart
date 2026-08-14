@@ -9,6 +9,8 @@ class AppUser {
   final String? city;
   final String? bio;
   final bool approved;
+  final String? profilePhotoUrl;
+  final List<String> serviceAreas;
 
   const AppUser({
     required this.id,
@@ -19,9 +21,13 @@ class AppUser {
     this.city,
     this.bio,
     this.approved = true,
+    this.profilePhotoUrl,
+    this.serviceAreas = const [],
   });
 
   factory AppUser.fromJson(Map<String, dynamic> json) {
+    final profile = json['professional_profile'] as Map<String, dynamic>?;
+
     return AppUser(
       id: json['id'].toString(),
       name: json['name']?.toString() ?? '',
@@ -31,6 +37,12 @@ class AppUser {
       city: json['city']?.toString(),
       bio: json['bio']?.toString(),
       approved: json['approved'] == true || json['approved'] == 1,
+      profilePhotoUrl: json['profile_photo_url']?.toString(),
+      serviceAreas: (profile?['service_areas'] as List?)
+              ?.map((e) => e.toString())
+              .where((e) => e.isNotEmpty)
+              .toList() ??
+          const [],
     );
   }
 
@@ -41,6 +53,8 @@ class AppUser {
     String? city,
     String? bio,
     bool? approved,
+    String? profilePhotoUrl,
+    List<String>? serviceAreas,
   }) {
     return AppUser(
       id: id,
@@ -51,6 +65,8 @@ class AppUser {
       city: city ?? this.city,
       bio: bio ?? this.bio,
       approved: approved ?? this.approved,
+      profilePhotoUrl: profilePhotoUrl ?? this.profilePhotoUrl,
+      serviceAreas: serviceAreas ?? this.serviceAreas,
     );
   }
 }

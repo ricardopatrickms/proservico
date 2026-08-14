@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 
 #[Fillable([
@@ -22,12 +23,17 @@ use Tymon\JWTAuth\Contracts\JWTSubject;
     'cpf',
     'approved',
     'password',
+    'profile_photo',
 ])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements JWTSubject
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
+
+    protected $appends = [
+        'profile_photo_url',
+    ];
 
     protected function casts(): array
     {
@@ -68,6 +74,28 @@ class User extends Authenticatable implements JWTSubject
     public function assignedServices(): HasMany
     {
         return $this->hasMany(ServiceRequest::class, 'professional_id');
+    }
+
+    public function addresses(): HasMany
+    {
+        return $this->hasMany(UserAddress::class);
+    }
+
+    public function getProfilePhotoUrlAttribute(): ?string
+    {
+        if ($this->profile_photo) {
+            return Storage::disk('public')->url($this->profile_photo);
+        }
+
+        $professionalPhoto = $this->relationLoaded('professionalProfile')
+            ? $this->professionalProfile?->profile_photo
+            : null;
+
+        if ($professionalPhoto) {
+            return Storage::disk('public')->url($professionalPhoto);
+        }
+
+        return null;
     }
 
     public function isClient(): bool

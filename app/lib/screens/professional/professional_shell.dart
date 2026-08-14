@@ -10,7 +10,6 @@ import 'professional_history_screen.dart';
 import 'professional_in_progress_screen.dart';
 import 'professional_profile_screen.dart';
 import 'professional_received_screen.dart';
-import 'professional_settings_screen.dart';
 
 enum ProfessionalNav {
   dashboard,
@@ -18,7 +17,6 @@ enum ProfessionalNav {
   inProgress,
   history,
   profile,
-  settings,
 }
 
 class ProfessionalShell extends StatefulWidget {
@@ -50,7 +48,6 @@ class _ProfessionalShellState extends State<ProfessionalShell> {
       ProfessionalNav.dashboard => const ProfessionalDashboardScreen(),
       ProfessionalNav.history => const ProfessionalHistoryScreen(),
       ProfessionalNav.profile => const ProfessionalProfileScreen(),
-      ProfessionalNav.settings => const ProfessionalSettingsScreen(),
       ProfessionalNav.received => const ProfessionalReceivedScreen(),
       ProfessionalNav.inProgress => const ProfessionalInProgressScreen(),
     };
@@ -75,8 +72,7 @@ class _ProfessionalShellState extends State<ProfessionalShell> {
         ProfessionalNav.history => 2,
         ProfessionalNav.profile => 3,
         ProfessionalNav.received ||
-        ProfessionalNav.inProgress ||
-        ProfessionalNav.settings =>
+        ProfessionalNav.inProgress =>
           1, // Dashboard como âncora visual; o body mostra a página escolhida
       };
     });
@@ -130,11 +126,6 @@ class _ProfessionalShellState extends State<ProfessionalShell> {
           label: 'Meu Perfil',
           icon: Icons.person_outline,
           onTap: () => _selectNav(ProfessionalNav.profile),
-        ),
-        AppMenuItem(
-          label: 'Configurações',
-          icon: Icons.settings_outlined,
-          onTap: () => _selectNav(ProfessionalNav.settings),
         ),
       ],
       footerItems: [
@@ -301,7 +292,6 @@ class _ProfessionalSidebar extends StatelessWidget {
                 _item(ProfessionalNav.inProgress, Icons.schedule_outlined, 'Serviços em Andamento'),
                 _item(ProfessionalNav.history, Icons.history, 'Histórico de Serviços'),
                 _item(ProfessionalNav.profile, Icons.person_outline, 'Meu Perfil'),
-                _item(ProfessionalNav.settings, Icons.settings_outlined, 'Configurações'),
               ],
             ),
           ),

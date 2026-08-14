@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../models/user.dart';
 import 'api_client.dart';
 import 'api_exception.dart';
@@ -102,20 +104,52 @@ class AuthService {
     return _persist(data);
   }
 
+  Future<AppUser> fetchMe() async {
+    final data = await _api.get('/auth/me', auth: true);
+    final user = AppUser.fromJson(data);
+    final token = SessionStore.instance.accessToken ?? '';
+    await SessionStore.instance.saveSession(token: token, user: user);
+    return user;
+  }
+
   Future<AppUser> updateProfile({
     required String name,
+    required String email,
     required String phone,
     String? city,
+    String? profilePhotoPath,
+    List<String>? serviceAreas,
   }) async {
-    final data = await _api.put(
-      '/auth/profile',
-      auth: true,
-      body: {
-        'name': name,
-        'phone': phone,
-        'city': city,
-      },
-    );
+    final fields = <String, String>{
+      'name': name,
+      'email': email,
+      'phone': phone,
+      if (city != null) 'city': city,
+      if (serviceAreas != null) 'service_areas': jsonEncode(serviceAreas),
+    };
+
+    final Map<String, dynamic> data;
+    if (profilePhotoPath != null && profilePhotoPath.isNotEmpty) {
+      data = await _api.putMultipart(
+        '/auth/profile',
+        auth: true,
+        fields: fields,
+        files: {'profile_photo': profilePhotoPath},
+      );
+    } else {
+      data = await _api.put(
+        '/auth/profile',
+        auth: true,
+        body: {
+          'name': name,
+          'email': email,
+          'phone': phone,
+          if (city != null) 'city': city,
+          if (serviceAreas != null) 'service_areas': serviceAreas,
+        },
+      );
+    }
+
     final userJson = data['user'];
     if (userJson is! Map<String, dynamic>) {
       throw const ApiException('Resposta inválida da API');

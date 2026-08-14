@@ -4,7 +4,6 @@ import '../../models/service_request.dart';
 import '../../services/api_exception.dart';
 import '../../services/service_request_service.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/helpers.dart';
 import '../client/service_detail_screen.dart';
 import 'professional_placeholder_screen.dart';
 
@@ -163,9 +162,6 @@ class _ProfessionalInProgressScreenState
                         ),
                       );
                     },
-                    onMessage: () {
-                      showAppSnackBar(context, 'Mensagens em breve.');
-                    },
                   ),
                 ),
               ),
@@ -203,7 +199,6 @@ class _InProgressCard extends StatelessWidget {
   final Color statusColor;
   final String dateLabel;
   final VoidCallback onDetails;
-  final VoidCallback onMessage;
 
   const _InProgressCard({
     required this.request,
@@ -211,7 +206,6 @@ class _InProgressCard extends StatelessWidget {
     required this.statusColor,
     required this.dateLabel,
     required this.onDetails,
-    required this.onMessage,
   });
 
   @override
@@ -323,14 +317,6 @@ class _InProgressCard extends StatelessWidget {
                 color: AppColors.primary,
                 onTap: onDetails,
               ),
-              const SizedBox(width: 10),
-              _ActionButton(
-                label: 'Mensagem',
-                icon: Icons.chat_bubble_outline,
-                color: AppColors.textSecondary,
-                borderColor: AppColors.border,
-                onTap: onMessage,
-              ),
             ],
           ),
         ],
@@ -343,7 +329,6 @@ class _ActionButton extends StatelessWidget {
   final String label;
   final IconData icon;
   final Color color;
-  final Color? borderColor;
   final VoidCallback onTap;
 
   const _ActionButton({
@@ -351,7 +336,6 @@ class _ActionButton extends StatelessWidget {
     required this.icon,
     required this.color,
     required this.onTap,
-    this.borderColor,
   });
 
   @override
@@ -365,7 +349,7 @@ class _ActionButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: borderColor ?? color),
+            border: Border.all(color: color),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
