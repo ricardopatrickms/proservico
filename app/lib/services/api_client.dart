@@ -216,7 +216,8 @@ class ApiClient {
     final normalized = path.toLowerCase();
     if (normalized.contains('/auth/login') ||
         normalized.contains('/auth/register') ||
-        normalized.contains('/auth/forgot-password')) {
+        normalized.contains('/auth/forgot-password') ||
+        normalized.contains('/auth/reset-password')) {
       return;
     }
 

@@ -179,6 +179,10 @@ class AuthService {
     return AppUser.fromJson(userJson);
   }
 
+  Future<void> sendForgotPassword({required String email}) async {
+    await _api.post('/auth/forgot-password', body: {'email': email});
+  }
+
   Future<void> logout() async {
     try {
       await _api.post('/auth/logout', auth: true);

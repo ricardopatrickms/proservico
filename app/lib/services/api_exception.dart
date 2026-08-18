@@ -41,6 +41,7 @@ class ApiException implements Exception {
       'validation.max.string': 'Algum campo ultrapassou o tamanho máximo.',
       'validation.required': 'Preencha todos os campos obrigatórios.',
       'validation.email': 'Informe um e-mail válido.',
+      'validation.exists': 'Informe um e-mail válido.',
       'validation.confirmed': 'A confirmação da senha não confere.',
       'validation.size.string': 'Valor em formato inválido.',
       'validation.min.string': 'Valor muito curto.',
@@ -50,6 +51,7 @@ class ApiException implements Exception {
       'email': {
         'validation.unique': 'Este e-mail já está cadastrado.',
         'validation.email': 'Informe um e-mail válido.',
+        'validation.exists': 'Informe um e-mail válido.',
       },
       'cpf': {
         'validation.unique': 'Este CPF já está cadastrado.',
@@ -85,6 +87,10 @@ class ApiException implements Exception {
     if (field != null && byField[field]?[raw] != null) {
       return byField[field]![raw]!;
     }
-    return byKey[raw] ?? raw;
+    if (byKey[raw] != null) return byKey[raw]!;
+    if (raw.startsWith('validation.')) {
+      return 'Não foi possível concluir. Verifique os dados e tente novamente.';
+    }
+    return raw;
   }
 }

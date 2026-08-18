@@ -5,10 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ProfessionalProfile;
 use App\Models\User;
+use App\Notifications\ResetPassword;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
@@ -271,14 +274,65 @@ class AuthController extends Controller
 
     public function forgotPassword(Request $request): JsonResponse
     {
-        $request->validate([
-            'email' => ['required', 'email', 'exists:users,email'],
+        $data = $request->validate([
+            'email' => ['required', 'string', 'email'],
         ]);
 
-        // Placeholder: integração de e-mail pode ser adicionada depois.
+        $user = User::where('email', $data['email'])->first();
+        if ($user) {
+            $user->notify(new ResetPassword);
+        }
+
         return response()->json([
-            'message' => 'Se o e-mail existir, enviaremos instruções de recuperação',
+            'message' => 'Se o e-mail estiver cadastrado, enviaremos um link de recuperação.',
         ]);
+    }
+
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'token' => ['required', 'string'],
+            'password' => ['required', 'confirmed', Password::defaults()],
+        ], [
+            'password.confirmed' => 'A confirmação da senha não confere.',
+        ]);
+
+        $cacheKey = 'pwreset:'.$data['token'];
+        $userId = Cache::get($cacheKey);
+
+        if (! $userId) {
+            return response()->json([
+                'message' => 'Link inválido ou expirado. Solicite um novo.',
+            ], 422);
+        }
+
+        $user = User::find($userId);
+        if (! $user) {
+            Cache::forget($cacheKey);
+
+            return response()->json([
+                'message' => 'Link inválido ou expirado. Solicite um novo.',
+            ], 422);
+        }
+
+        $user->update(['password' => $data['password']]);
+        Cache::forget($cacheKey);
+
+        return response()->json([
+            'message' => 'Senha redefinida com sucesso.',
+        ]);
+    }
+
+    /**
+     * Gera um token de uso único (cache 30min) para o form de reset.
+     * Chamado pelo handler web da rota `password.reset` após validar o signed URL.
+     */
+    public static function issueResetToken(string $userId): string
+    {
+        $token = Str::random(60);
+        Cache::put('pwreset:'.$token, $userId, now()->addMinutes(30));
+
+        return $token;
     }
 
     protected function respondWithToken(string $token, User $user): JsonResponse

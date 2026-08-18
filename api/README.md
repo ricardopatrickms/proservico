@@ -53,7 +53,8 @@ Authorization: Bearer {access_token}
 |--------|------|-----------|
 | POST | `/api/auth/register` | Cadastro (cliente/profissional) |
 | POST | `/api/auth/login` | Login |
-| POST | `/api/auth/forgot-password` | Recuperação de senha |
+| POST | `/api/auth/forgot-password` | Envia o link de recuperação (sempre 200) |
+| POST | `/api/auth/reset-password` | Redefine a senha com o token do e-mail |
 | GET | `/api/auth/me` | Usuário autenticado |
 | PUT | `/api/auth/profile` | Atualizar perfil |
 | POST | `/api/auth/logout` | Logout |
