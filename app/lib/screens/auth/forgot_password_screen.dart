@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../services/api_exception.dart';
+import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/helpers.dart';
 
@@ -14,6 +16,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   bool _sent = false;
+  bool _loading = false;
 
   @override
   void dispose() {
@@ -21,10 +24,26 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _sent = true);
-    showAppSnackBar(context, 'Link de recuperação enviado (simulado)');
+    if (_loading) return;
+
+    setState(() => _loading = true);
+    try {
+      await AuthService.instance.sendForgotPassword(
+        email: _emailController.text.trim(),
+      );
+      if (!mounted) return;
+      setState(() => _sent = true);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.displayMessage);
+    } catch (_) {
+      if (!mounted) return;
+      showAppSnackBar(context, 'Não foi possível enviar o link. Tente novamente.');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
@@ -44,9 +63,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    'Enviamos instruções para ${_emailController.text.trim()}.',
-                    style: const TextStyle(color: AppColors.textSecondary),
+                  const Text(
+                    'Se o e-mail estiver cadastrado, você receberá um link para redefinir a senha.',
+                    style: TextStyle(color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: 24),
                   ElevatedButton(
@@ -68,6 +87,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
+                      autocorrect: false,
+                      enabled: !_loading,
                       decoration: const InputDecoration(
                         labelText: 'E-mail',
                         prefixIcon: Icon(Icons.email_outlined),
@@ -76,7 +97,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           (v == null || !v.contains('@')) ? 'Informe um e-mail válido' : null,
                     ),
                     const SizedBox(height: 24),
-                    ElevatedButton(onPressed: _submit, child: const Text('Enviar link')),
+                    ElevatedButton(
+                      onPressed: _loading ? null : _submit,
+                      child: _loading
+                          ? const SizedBox(
+                              height: 22,
+                              width: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Enviar link'),
+                    ),
                   ],
                 ),
               ),
