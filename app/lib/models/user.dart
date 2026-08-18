@@ -36,7 +36,9 @@ class AppUser {
       type: accountTypeFromApi(json['type']?.toString()),
       city: json['city']?.toString(),
       bio: json['bio']?.toString(),
-      approved: json['approved'] == true || json['approved'] == 1,
+      approved: json['status'] != null
+          ? json['status'].toString() == 'ativo'
+          : json['approved'] == true || json['approved'] == 1,
       profilePhotoUrl: json['profile_photo_url']?.toString(),
       serviceAreas: (profile?['service_areas'] as List?)
               ?.map((e) => e.toString())

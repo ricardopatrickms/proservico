@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\UserStatus;
 use App\Models\ProfessionalProfile;
 use App\Models\ProfessionalService;
 use App\Models\ServiceRequest;
@@ -18,7 +19,7 @@ class DatabaseSeeder extends Seeder
             'phone' => '(67) 99999-0000',
             'type' => 'admin',
             'city' => 'Campo Grande/MS',
-            'approved' => true,
+            'status' => UserStatus::Ativo,
             'password' => 'password',
         ]);
 
@@ -28,7 +29,7 @@ class DatabaseSeeder extends Seeder
             'phone' => '(67) 99999-1111',
             'type' => 'client',
             'city' => 'Campo Grande/MS',
-            'approved' => true,
+            'status' => UserStatus::Ativo,
             'password' => 'password',
         ]);
 
@@ -39,8 +40,8 @@ class DatabaseSeeder extends Seeder
             'type' => 'professional',
             'city' => 'Campo Grande/MS',
             'bio' => 'Eletricista e climatização com 8 anos de experiência.',
-            'cpf' => '123.456.789-00',
-            'approved' => true,
+            'cpf' => '12345678900',
+            'status' => UserStatus::Ativo,
             'password' => 'password',
         ]);
 
@@ -64,7 +65,7 @@ class DatabaseSeeder extends Seeder
             'phone' => '(67) 96666-4444',
             'type' => 'professional',
             'city' => 'Campo Grande/MS',
-            'approved' => false,
+            'status' => UserStatus::Pendente,
             'password' => 'password',
         ]);
 

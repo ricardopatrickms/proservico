@@ -628,10 +628,14 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
         _field(
           label: 'Categoria de serviço *',
           child: DropdownButtonFormField<String>(
+            isExpanded: true,
             value: _category,
             decoration: const InputDecoration(hintText: 'Selecione uma categoria'),
             items: _categories
-                .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                .map((c) => DropdownMenuItem(
+                      value: c,
+                      child: Text(c, overflow: TextOverflow.ellipsis),
+                    ))
                 .toList(),
             onChanged: (v) => setState(() => _category = v),
             validator: (v) => v == null ? 'Selecione uma categoria' : null,
@@ -648,10 +652,14 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
         _field(
           label: 'Tempo de experiência *',
           child: DropdownButtonFormField<String>(
+            isExpanded: true,
             value: _experience,
             decoration: const InputDecoration(hintText: 'Selecione o tempo de experiência'),
             items: _experiences
-                .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                .map((e) => DropdownMenuItem(
+                      value: e,
+                      child: Text(e, overflow: TextOverflow.ellipsis),
+                    ))
                 .toList(),
             onChanged: (v) => setState(() => _experience = v),
             validator: (v) => v == null ? 'Selecione o tempo' : null,
@@ -725,10 +733,14 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
         _field(
           label: 'Tipo de conta *',
           child: DropdownButtonFormField<String>(
+            isExpanded: true,
             value: _accountType,
             decoration: const InputDecoration(hintText: 'Selecione o tipo de conta'),
             items: _accountTypes
-                .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                .map((t) => DropdownMenuItem(
+                      value: t,
+                      child: Text(t, overflow: TextOverflow.ellipsis),
+                    ))
                 .toList(),
             onChanged: (v) => setState(() => _accountType = v),
             validator: (v) => v == null ? 'Selecione o tipo' : null,
@@ -743,10 +755,14 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
         _field(
           label: 'Tipo da chave PIX',
           child: DropdownButtonFormField<String>(
+            isExpanded: true,
             value: _pixType,
             decoration: const InputDecoration(hintText: 'Selecione o tipo da chave PIX'),
             items: _pixTypes
-                .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                .map((t) => DropdownMenuItem(
+                      value: t,
+                      child: Text(t, overflow: TextOverflow.ellipsis),
+                    ))
                 .toList(),
             onChanged: (v) => setState(() => _pixType = v),
           ),

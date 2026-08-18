@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\UserStatus;
 use App\Http\Controllers\Controller;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 class AdminController extends Controller
 {
@@ -17,9 +19,9 @@ class AdminController extends Controller
 
         return response()->json([
             'clients' => User::where('type', 'client')->count(),
-            'professionals' => User::where('type', 'professional')->where('approved', true)->count(),
+            'professionals' => User::where('type', 'professional')->where('status', UserStatus::Ativo)->count(),
             'pending_approvals' => User::where('type', 'professional')
-                ->where('approved', false)
+                ->where('status', UserStatus::Pendente)
                 ->count(),
             'service_requests' => ServiceRequest::count(),
             'by_status' => [
@@ -43,8 +45,11 @@ class AdminController extends Controller
             $query->where('type', $request->string('type'));
         }
 
-        if ($request->has('approved')) {
-            $query->where('approved', filter_var($request->input('approved'), FILTER_VALIDATE_BOOLEAN));
+        if ($request->filled('status')) {
+            $query->where('status', $request->string('status'));
+        } elseif ($request->has('approved')) {
+            $approved = filter_var($request->input('approved'), FILTER_VALIDATE_BOOLEAN);
+            $query->where('status', $approved ? UserStatus::Ativo : UserStatus::Pendente);
         }
 
         return response()->json($query->get());
@@ -59,25 +64,28 @@ class AdminController extends Controller
         }
 
         $data = $request->validate([
-            'approved' => ['required', 'boolean'],
+            'status' => ['required_without:approved', Rule::enum(UserStatus::class)],
+            'approved' => ['required_without:status', 'boolean'],
         ]);
 
-        if ($data['approved']) {
-            $user->update(['approved' => true]);
-
-            return response()->json([
-                'message' => 'Profissional aprovado',
-                'user' => $user->fresh()->load('professionalProfile'),
-            ]);
+        $status = $data['status'] ?? ($data['approved'] ? UserStatus::Ativo : UserStatus::Rejeitado);
+        if (! $status instanceof UserStatus) {
+            $status = UserStatus::from((string) $status);
         }
 
-        // Rejeição: remove o cadastro pendente (não pode logar e não fica na fila).
-        $user->professionalProfile()?->delete();
-        $user->professionalServices()->delete();
-        $user->delete();
+        $user->update(['status' => $status]);
+
+        $message = match ($status) {
+            UserStatus::Ativo => 'Profissional aprovado',
+            UserStatus::Inativo => 'Profissional inativado',
+            UserStatus::Pendente => 'Profissional marcado como pendente',
+            UserStatus::Excluido => 'Profissional excluído',
+            UserStatus::Rejeitado => 'Profissional rejeitado',
+        };
 
         return response()->json([
-            'message' => 'Profissional rejeitado',
+            'message' => $message,
+            'user' => $user->fresh()->load('professionalProfile'),
         ]);
     }
 

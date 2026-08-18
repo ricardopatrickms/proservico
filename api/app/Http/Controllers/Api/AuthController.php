@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\UserStatus;
 use App\Http\Controllers\Controller;
 use App\Models\ProfessionalProfile;
 use App\Models\User;
@@ -27,7 +28,15 @@ class AuthController extends Controller
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'email' => [
+                'required',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')->whereNotIn('status', [
+                    UserStatus::Rejeitado->value,
+                    UserStatus::Excluido->value,
+                ]),
+            ],
             'phone' => ['required', 'string', 'min:10', 'max:15'],
             'password' => ['required', 'confirmed', Password::defaults()],
             'type' => ['required', Rule::in(['client', 'professional'])],
@@ -37,7 +46,15 @@ class AuthController extends Controller
                 'nullable',
                 'string',
                 'size:11',
-                'unique:users,cpf',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (! is_string($value) || $value === '') {
+                        return;
+                    }
+
+                    if (User::cpfTaken($value)) {
+                        $fail('Este CPF já está cadastrado.');
+                    }
+                },
             ],
             'bio' => ['nullable', 'string'],
             'category' => [Rule::requiredIf($isProfessional), 'nullable', 'string', 'max:255'],
@@ -92,7 +109,14 @@ class AuthController extends Controller
             'profile_photo.required' => 'A foto de perfil é obrigatória.',
         ]);
 
-        $user = User::create([
+        $existing = isset($data['cpf'])
+            ? User::query()
+                ->withCpf($data['cpf'])
+                ->whereIn('status', [UserStatus::Rejeitado, UserStatus::Excluido])
+                ->first()
+            : null;
+
+        $payload = [
             'name' => $data['name'],
             'email' => $data['email'],
             'phone' => $data['phone'],
@@ -101,8 +125,18 @@ class AuthController extends Controller
             'city' => $data['city'] ?? null,
             'cpf' => $data['cpf'] ?? null,
             'bio' => $data['bio'] ?? null,
-            'approved' => $data['type'] === 'client',
-        ]);
+            'status' => $data['type'] === 'professional' ? UserStatus::Pendente : UserStatus::Ativo,
+        ];
+
+        if ($existing) {
+            $existing->professionalProfile()->delete();
+            $existing->professionalServices()->delete();
+            $existing->fill($payload);
+            $existing->save();
+            $user = $existing->fresh();
+        } else {
+            $user = User::create($payload);
+        }
 
         if ($user->isProfessional()) {
             try {
@@ -140,7 +174,7 @@ class AuthController extends Controller
             'token_type' => 'bearer',
             'expires_in' => Auth::guard('api')->factory()->getTTL() * 60,
             'user' => $user->load('professionalProfile'),
-            'pending_approval' => $user->isProfessional() && ! $user->approved,
+            'pending_approval' => $user->isProfessional() && $user->isPending(),
         ], 201);
     }
 
@@ -158,7 +192,25 @@ class AuthController extends Controller
         /** @var User $user */
         $user = Auth::guard('api')->user();
 
-        if ($user->isProfessional() && ! $user->approved) {
+        if ($user->status === UserStatus::Rejeitado) {
+            Auth::guard('api')->logout();
+
+            return response()->json(['message' => 'Cadastro profissional rejeitado'], 403);
+        }
+
+        if ($user->status === UserStatus::Excluido) {
+            Auth::guard('api')->logout();
+
+            return response()->json(['message' => 'Cadastro excluído'], 403);
+        }
+
+        if ($user->status === UserStatus::Inativo) {
+            Auth::guard('api')->logout();
+
+            return response()->json(['message' => 'Conta inativa'], 403);
+        }
+
+        if ($user->isProfessional() && $user->isPending()) {
             Auth::guard('api')->logout();
 
             return response()->json([

@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\UserStatus;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -22,7 +23,7 @@ class UserFactory extends Factory
             'phone' => fake()->numerify('(67) 9####-####'),
             'type' => 'client',
             'city' => 'Campo Grande/MS',
-            'approved' => true,
+            'status' => UserStatus::Ativo,
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
@@ -40,7 +41,7 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'type' => 'professional',
-            'approved' => false,
+            'status' => UserStatus::Pendente,
         ]);
     }
 
@@ -48,7 +49,7 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'type' => 'admin',
-            'approved' => true,
+            'status' => UserStatus::Ativo,
         ]);
     }
 }
