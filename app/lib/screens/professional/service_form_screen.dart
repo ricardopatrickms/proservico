@@ -4,6 +4,7 @@ import '../../data/mock_store.dart';
 import '../../models/service_request.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/helpers.dart';
+import '../../widgets/service_category_picker.dart';
 
 class ServiceFormScreen extends StatefulWidget {
   final ProfessionalService? service;
@@ -17,9 +18,9 @@ class ServiceFormScreen extends StatefulWidget {
 class _ServiceFormScreenState extends State<ServiceFormScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _titleController;
-  late final TextEditingController _categoryController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _priceController;
+  String? _category;
   late bool _active;
 
   bool get _isEditing => widget.service != null;
@@ -29,7 +30,7 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
     super.initState();
     final service = widget.service;
     _titleController = TextEditingController(text: service?.title ?? '');
-    _categoryController = TextEditingController(text: service?.category ?? '');
+    _category = service?.category;
     _descriptionController = TextEditingController(text: service?.description ?? '');
     _priceController = TextEditingController(
       text: service != null ? service.priceFrom.toStringAsFixed(2) : '',
@@ -40,7 +41,6 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
   @override
   void dispose() {
     _titleController.dispose();
-    _categoryController.dispose();
     _descriptionController.dispose();
     _priceController.dispose();
     super.dispose();
@@ -48,6 +48,8 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
 
   void _save() {
     if (!_formKey.currentState!.validate()) return;
+    final category = _category?.trim() ?? '';
+    if (category.isEmpty) return;
 
     final price = double.tryParse(_priceController.text.replaceAll(',', '.')) ?? 0;
 
@@ -55,7 +57,7 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
       MockStore.instance.updateProfessionalService(
         widget.service!.copyWith(
           title: _titleController.text.trim(),
-          category: _categoryController.text.trim(),
+          category: category,
           description: _descriptionController.text.trim(),
           priceFrom: price,
           active: _active,
@@ -67,7 +69,7 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
         ProfessionalService(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
           title: _titleController.text.trim(),
-          category: _categoryController.text.trim(),
+          category: category,
           description: _descriptionController.text.trim(),
           priceFrom: price,
           active: _active,
@@ -94,10 +96,9 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
               validator: (v) => (v == null || v.trim().isEmpty) ? 'Obrigatório' : null,
             ),
             const SizedBox(height: 12),
-            TextFormField(
-              controller: _categoryController,
-              decoration: const InputDecoration(labelText: 'Categoria'),
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Obrigatório' : null,
+            ServiceCategoryPicker(
+              value: _category,
+              onChanged: (v) => setState(() => _category = v),
             ),
             const SizedBox(height: 12),
             TextFormField(

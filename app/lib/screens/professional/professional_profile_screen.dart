@@ -9,6 +9,7 @@ import '../../models/user_address.dart';
 import '../../services/address_service.dart';
 import '../../services/api_exception.dart';
 import '../../services/auth_service.dart';
+import '../../services/service_category_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/helpers.dart';
 import 'professional_placeholder_screen.dart';
@@ -35,18 +36,8 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
   String? _existingPhotoUrl;
   List<UserAddress> _addresses = [];
   final Set<String> _areas = {};
-
-  static const _availableAreas = [
-    'Serviços Domésticos',
-    'Transporte',
-    'Saúde e Bem-estar',
-    'Eventos e Festas',
-    'Serviços Criativos',
-    'Construção e Reforma',
-    'Tecnologia',
-    'Educacionais',
-    'Administrativos',
-  ];
+  List<String> _availableAreas = [];
+  bool _loadingAreas = true;
 
   @override
   void initState() {
@@ -59,6 +50,7 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
     _areas.addAll(user?.serviceAreas ?? const []);
     _loadProfile();
     _loadAddresses();
+    _loadAreas();
   }
 
   @override
@@ -86,6 +78,11 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
         _areas
           ..clear()
           ..addAll(user.serviceAreas);
+        for (final area in user.serviceAreas) {
+          if (!_availableAreas.contains(area)) {
+            _availableAreas.add(area);
+          }
+        }
       });
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -112,6 +109,28 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
       showAppSnackBar(context, 'Não foi possível carregar os endereços.');
     } finally {
       if (mounted) setState(() => _loadingAddresses = false);
+    }
+  }
+
+  Future<void> _loadAreas() async {
+    setState(() => _loadingAreas = true);
+    try {
+      final roots = await ServiceCategoryService.instance.list();
+      if (!mounted) return;
+      final catalog = ServiceCategoryService.instance.parentNames(roots);
+      final extras = _areas.where((a) => !catalog.contains(a));
+      setState(() {
+        _availableAreas = [...catalog, ...extras];
+        _loadingAreas = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingAreas = false);
+      showAppSnackBar(context, e.displayMessage);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingAreas = false);
+      showAppSnackBar(context, 'Não foi possível carregar as categorias.');
     }
   }
 
@@ -666,37 +685,51 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 10),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final cols = constraints.maxWidth >= 560 ? 2 : 1;
-                    return Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: _availableAreas.map((area) {
-                        final selected = _areas.contains(area);
-                        return SizedBox(
-                          width: cols == 2 ? (constraints.maxWidth - 8) / 2 : constraints.maxWidth,
-                          child: CheckboxListTile(
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                            controlAffinity: ListTileControlAffinity.leading,
-                            value: selected,
-                            title: Text(area, style: const TextStyle(fontSize: 13.5)),
-                            onChanged: (v) {
-                              setState(() {
-                                if (v == true) {
-                                  _areas.add(area);
-                                } else {
-                                  _areas.remove(area);
-                                }
-                              });
-                            },
-                          ),
-                        );
-                      }).toList(),
-                    );
-                  },
-                ),
+                if (_loadingAreas)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (_availableAreas.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      'Nenhuma categoria cadastrada no catálogo.',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    ),
+                  )
+                else
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final cols = constraints.maxWidth >= 560 ? 2 : 1;
+                      return Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: _availableAreas.map((area) {
+                          final selected = _areas.contains(area);
+                          return SizedBox(
+                            width: cols == 2 ? (constraints.maxWidth - 8) / 2 : constraints.maxWidth,
+                            child: CheckboxListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              controlAffinity: ListTileControlAffinity.leading,
+                              value: selected,
+                              title: Text(area, style: const TextStyle(fontSize: 13.5)),
+                              onChanged: (v) {
+                                setState(() {
+                                  if (v == true) {
+                                    _areas.add(area);
+                                  } else {
+                                    _areas.remove(area);
+                                  }
+                                });
+                              },
+                            ),
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,

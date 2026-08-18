@@ -9,6 +9,8 @@ use App\Http\Controllers\Api\ServiceRequestController;
 use App\Http\Controllers\Api\UserAddressController;
 use Illuminate\Support\Facades\Route;
 
+Route::get('service-categories', [ServiceCategoryController::class, 'catalog']);
+
 Route::prefix('auth')->group(function () {
     Route::post('register', [AuthController::class, 'register']);
     Route::post('login', [AuthController::class, 'login']);

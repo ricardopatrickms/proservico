@@ -10,6 +10,7 @@ import '../../services/api_exception.dart';
 import '../../services/service_request_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/helpers.dart';
+import '../../widgets/service_category_picker.dart';
 import '../professional/professional_request_detail_sheet.dart';
 
 class RequestServiceScreen extends StatefulWidget {
@@ -45,19 +46,6 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
   GenderPreference _genderPreference = GenderPreference.any;
   final List<XFile> _photos = [];
   bool _loading = false;
-
-  static const _categories = [
-    'Elétrica',
-    'Hidráulica',
-    'Climatização',
-    'Pintura',
-    'Limpeza',
-    'Jardinagem',
-    'Marcenaria',
-    'Alvenaria',
-    'Informática',
-    'Outros',
-  ];
 
   static const _materialsOptions = <(String, String)>[
     ('client', 'Cliente fornece os materiais'),
@@ -329,17 +317,10 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
               icon: Icons.handyman_outlined,
               children: [
                 _label('Categoria do serviço'),
-                DropdownButtonFormField<String>(
+                ServiceCategoryPicker(
                   value: _category,
-                  decoration: const InputDecoration(
-                    hintText: 'Selecione a categoria',
-                    prefixIcon: Icon(Icons.lightbulb_outline),
-                  ),
-                  items: _categories
-                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                      .toList(),
+                  prefixIcon: const Icon(Icons.lightbulb_outline),
                   onChanged: (v) => setState(() => _category = v),
-                  validator: (v) => v == null ? 'Selecione a categoria' : null,
                 ),
                 const SizedBox(height: 14),
                 _label('Título do Serviço'),

@@ -10,6 +10,7 @@ import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/brand_logo.dart';
 import '../../widgets/helpers.dart';
+import '../../widgets/service_category_picker.dart';
 import 'login_screen.dart';
 
 class ProfessionalRegisterScreen extends StatefulWidget {
@@ -60,17 +61,6 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
   _PickedDoc? _certificate;
   _PickedDoc? _criminalRecord;
   _PickedDoc? _profilePhoto;
-
-  static const _categories = [
-    'Elétrica',
-    'Hidráulica',
-    'Climatização',
-    'Pintura',
-    'Limpeza',
-    'Jardinagem',
-    'Marcenaria',
-    'Outros',
-  ];
 
   static const _experiences = [
     'Menos de 1 ano',
@@ -627,16 +617,9 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
       children: [
         _field(
           label: 'Categoria de serviço *',
-          child: DropdownButtonFormField<String>(
-            isExpanded: true,
+          child: ServiceCategoryPicker(
             value: _category,
-            decoration: const InputDecoration(hintText: 'Selecione uma categoria'),
-            items: _categories
-                .map((c) => DropdownMenuItem(
-                      value: c,
-                      child: Text(c, overflow: TextOverflow.ellipsis),
-                    ))
-                .toList(),
+            hintText: 'Selecione uma categoria',
             onChanged: (v) => setState(() => _category = v),
             validator: (v) => v == null ? 'Selecione uma categoria' : null,
           ),

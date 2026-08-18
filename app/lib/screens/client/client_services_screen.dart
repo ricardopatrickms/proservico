@@ -8,6 +8,7 @@ import '../../services/service_request_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/helpers.dart';
 import '../../widgets/service_cards.dart';
+import '../../widgets/service_category_picker.dart';
 import '../professional/professional_request_detail_sheet.dart';
 import 'client_proposals_screen.dart';
 
@@ -615,22 +616,8 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
   late final TextEditingController _stateController;
   late final TextEditingController _cepController;
   late final TextEditingController _descriptionController;
-  late final List<String> _categoryOptions;
   String? _category;
   bool _saving = false;
-
-  static const _categories = [
-    'Elétrica',
-    'Hidráulica',
-    'Climatização',
-    'Pintura',
-    'Limpeza',
-    'Jardinagem',
-    'Marcenaria',
-    'Alvenaria',
-    'Informática',
-    'Outros',
-  ];
 
   @override
   void initState() {
@@ -652,24 +639,7 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
     );
 
     final rawCategory = (request.category ?? '').trim();
-    final matched = _categories.cast<String?>().firstWhere(
-          (c) => c!.toLowerCase() == rawCategory.toLowerCase(),
-          orElse: () => null,
-        );
-    if (matched != null) {
-      _category = matched;
-      _categoryOptions = List<String>.from(_categories);
-    } else if (rawCategory.isNotEmpty) {
-      _category = rawCategory;
-      _categoryOptions = [rawCategory, ..._categories];
-    } else {
-      final titleMatch = _categories.cast<String?>().firstWhere(
-            (c) => c!.toLowerCase() == request.title.trim().toLowerCase(),
-            orElse: () => null,
-          );
-      _category = titleMatch;
-      _categoryOptions = List<String>.from(_categories);
-    }
+    _category = rawCategory.isNotEmpty ? rawCategory : null;
   }
 
   @override
@@ -860,23 +830,11 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
                   ),
                   const SizedBox(height: 16),
                   _fieldLabel('Tipo de Serviço'),
-                  DropdownButtonFormField<String>(
+                  ServiceCategoryPicker(
                     value: _category,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      hintText: 'Selecione o tipo',
-                    ),
-                    items: _categoryOptions
-                        .map(
-                          (c) => DropdownMenuItem(
-                            value: c,
-                            child: Text(c),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: _saving
-                        ? null
-                        : (v) => setState(() => _category = v),
+                    hintText: 'Selecione o tipo',
+                    enabled: !_saving,
+                    onChanged: (v) => setState(() => _category = v),
                     validator: (v) =>
                         v == null ? 'Selecione o tipo de serviço' : null,
                   ),

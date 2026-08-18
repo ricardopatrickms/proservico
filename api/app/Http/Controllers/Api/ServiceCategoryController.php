@@ -10,6 +10,19 @@ use Illuminate\Support\Facades\Auth;
 
 class ServiceCategoryController extends Controller
 {
+    public function catalog(): JsonResponse
+    {
+        $items = ServiceCategory::query()
+            ->active()
+            ->whereNull('parent_id')
+            ->with(['children' => fn ($q) => $q->active()])
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json($items);
+    }
+
     public function index(): JsonResponse
     {
         $this->ensureAdmin();
