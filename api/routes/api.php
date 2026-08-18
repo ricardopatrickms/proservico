@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProfessionalServiceController;
+use App\Http\Controllers\Api\ServiceCategoryController;
 use App\Http\Controllers\Api\ServiceProposalController;
 use App\Http\Controllers\Api\ServiceRequestController;
 use App\Http\Controllers\Api\UserAddressController;
@@ -47,5 +48,9 @@ Route::middleware('auth:api')->group(function () {
         Route::get('users', [AdminController::class, 'users']);
         Route::patch('users/{user}/approval', [AdminController::class, 'setApproval']);
         Route::get('service-requests', [AdminController::class, 'serviceRequests']);
+        Route::get('service-categories', [ServiceCategoryController::class, 'index']);
+        Route::post('service-categories', [ServiceCategoryController::class, 'store']);
+        Route::patch('service-categories/{serviceCategory}', [ServiceCategoryController::class, 'update']);
+        Route::delete('service-categories/{serviceCategory}', [ServiceCategoryController::class, 'destroy']);
     });
 });

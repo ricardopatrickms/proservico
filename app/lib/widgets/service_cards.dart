@@ -25,6 +25,7 @@ class StatusBadge extends StatelessWidget {
       ),
       child: Text(
         label,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600),
       ),
     );
@@ -86,7 +87,8 @@ class ServiceRequestCard extends StatelessWidget {
                       style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
                     ),
                   ),
-                  StatusBadge(status: request.status),
+                  const SizedBox(width: 8),
+                  Flexible(child: StatusBadge(status: request.status)),
                 ],
               ),
               const SizedBox(height: 8),

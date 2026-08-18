@@ -42,7 +42,10 @@ class _ClientServicesScreenState extends State<ClientServicesScreen>
   }
 
   void _onStoreChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   List<ServiceRequest> get _active => _store.requests

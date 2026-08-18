@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../models/service_request.dart';
 import '../services/api_exception.dart';
@@ -26,10 +27,28 @@ class ClientRequestsStore extends ChangeNotifier {
 
   int get totalCount => requests.length;
 
-  Future<void> load() async {
+  Future<void>? _inFlight;
+
+  void _safeNotify() {
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.idle ||
+        phase == SchedulerPhase.postFrameCallbacks) {
+      notifyListeners();
+      return;
+    }
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (hasListeners) notifyListeners();
+    });
+  }
+
+  Future<void> load() {
+    return _inFlight ??= _doLoad().whenComplete(() => _inFlight = null);
+  }
+
+  Future<void> _doLoad() async {
     loading = true;
     error = null;
-    notifyListeners();
+    _safeNotify();
     try {
       requests = await _service.list();
     } on ApiException catch (e) {
@@ -38,7 +57,7 @@ class ClientRequestsStore extends ChangeNotifier {
       error = 'Não foi possível carregar os serviços.';
     } finally {
       loading = false;
-      notifyListeners();
+      _safeNotify();
     }
   }
 
@@ -46,13 +65,13 @@ class ClientRequestsStore extends ChangeNotifier {
     requests = [];
     error = null;
     loading = false;
-    notifyListeners();
+    _safeNotify();
   }
 
   Future<ServiceRequest> create(CreateServiceRequestInput input) async {
     final created = await _service.create(input);
     requests = [created, ...requests];
-    notifyListeners();
+    _safeNotify();
     return created;
   }
 
@@ -82,7 +101,7 @@ class ClientRequestsStore extends ChangeNotifier {
     } else {
       requests = [updated, ...requests];
     }
-    notifyListeners();
+    _safeNotify();
     return updated;
   }
 }

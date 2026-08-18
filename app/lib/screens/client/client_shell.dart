@@ -159,36 +159,48 @@ class _ClientShellState extends State<ClientShell> {
                 _profilePage,
               ],
             ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _bottomSelectedIndex,
-        onDestinationSelected: _goToTab,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.menu),
-            selectedIcon: Icon(Icons.menu),
-            label: 'Menu',
+      bottomNavigationBar: NavigationBarTheme(
+        data: NavigationBarThemeData(
+          labelTextStyle: WidgetStateProperty.all(
+            const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              height: 1.1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
-            label: 'Dashboard',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.add_circle_outline),
-            selectedIcon: Icon(Icons.add_circle),
-            label: 'Solicitar',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.list_alt_outlined),
-            selectedIcon: Icon(Icons.list_alt),
-            label: 'Serviços',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Perfil',
-          ),
-        ],
+        ),
+        child: NavigationBar(
+          selectedIndex: _bottomSelectedIndex,
+          onDestinationSelected: _goToTab,
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.menu),
+              selectedIcon: Icon(Icons.menu),
+              label: 'Menu',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.dashboard_outlined),
+              selectedIcon: Icon(Icons.dashboard),
+              label: 'Dashboard',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.add_circle_outline),
+              selectedIcon: Icon(Icons.add_circle),
+              label: 'Solicitar',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.list_alt_outlined),
+              selectedIcon: Icon(Icons.list_alt),
+              label: 'Serviços',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: 'Perfil',
+            ),
+          ],
+        ),
       ),
     );
   }

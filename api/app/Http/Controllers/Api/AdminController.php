@@ -17,8 +17,10 @@ class AdminController extends Controller
 
         return response()->json([
             'clients' => User::where('type', 'client')->count(),
-            'professionals' => User::where('type', 'professional')->count(),
-            'pending_approvals' => User::where('type', 'professional')->where('approved', false)->count(),
+            'professionals' => User::where('type', 'professional')->where('approved', true)->count(),
+            'pending_approvals' => User::where('type', 'professional')
+                ->where('approved', false)
+                ->count(),
             'service_requests' => ServiceRequest::count(),
             'by_status' => [
                 'pending' => ServiceRequest::where('status', 'pending')->count(),
@@ -33,7 +35,9 @@ class AdminController extends Controller
     {
         $this->ensureAdmin();
 
-        $query = User::with('professionalProfile')->latest();
+        $query = User::with('professionalProfile')
+            ->withCount(['serviceRequests', 'professionalServices', 'assignedServices'])
+            ->latest();
 
         if ($request->filled('type')) {
             $query->where('type', $request->string('type'));
@@ -58,11 +62,22 @@ class AdminController extends Controller
             'approved' => ['required', 'boolean'],
         ]);
 
-        $user->update(['approved' => $data['approved']]);
+        if ($data['approved']) {
+            $user->update(['approved' => true]);
+
+            return response()->json([
+                'message' => 'Profissional aprovado',
+                'user' => $user->fresh()->load('professionalProfile'),
+            ]);
+        }
+
+        // Rejeição: remove o cadastro pendente (não pode logar e não fica na fila).
+        $user->professionalProfile()?->delete();
+        $user->professionalServices()->delete();
+        $user->delete();
 
         return response()->json([
-            'message' => $data['approved'] ? 'Profissional aprovado' : 'Profissional reprovado',
-            'user' => $user->fresh()->load('professionalProfile'),
+            'message' => 'Profissional rejeitado',
         ]);
     }
 
