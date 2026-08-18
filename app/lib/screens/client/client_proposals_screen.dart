@@ -36,7 +36,10 @@ class _ClientProposalsScreenState extends State<ClientProposalsScreen> {
   }
 
   void _onChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   List<ServiceRequest> get _items {

@@ -33,7 +33,10 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> {
   }
 
   void _onStoreChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
