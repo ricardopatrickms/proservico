@@ -4,11 +4,11 @@ namespace App\Enums;
 
 enum UserStatus: string
 {
-    case Ativo = 'ativo';
-    case Inativo = 'inativo';
-    case Pendente = 'pendente';
-    case Excluido = 'excluido';
-    case Rejeitado = 'rejeitado';
+    case Ativo = 'ATIVO';
+    case Inativo = 'INATIVO';
+    case Pendente = 'PENDENTE';
+    case Excluido = 'EXCLUIDO';
+    case Rejeitado = 'REJEITADO';
 
     public function isActive(): bool
     {

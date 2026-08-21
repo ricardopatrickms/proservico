@@ -37,7 +37,7 @@ class AppUser {
       city: json['city']?.toString(),
       bio: json['bio']?.toString(),
       approved: json['status'] != null
-          ? json['status'].toString() == 'ativo'
+          ? json['status'].toString().toUpperCase() == 'ATIVO'
           : json['approved'] == true || json['approved'] == 1,
       profilePhotoUrl: json['profile_photo_url']?.toString(),
       serviceAreas: (profile?['service_areas'] as List?)

@@ -11,22 +11,22 @@ return new class extends Migration
     {
         if (! Schema::hasColumn('users', 'status')) {
             Schema::table('users', function (Blueprint $table) {
-                $table->enum('status', ['ativo', 'inativo', 'pendente', 'excluido', 'rejeitado'])
-                    ->default('ativo')
+                $table->enum('status', ['ATIVO', 'INATIVO', 'PENDENTE', 'EXCLUIDO', 'REJEITADO'])
+                    ->default('ATIVO')
                     ->after('cpf');
             });
         }
 
         if (Schema::hasColumn('users', 'approved')) {
-            DB::table('users')->where('approved', true)->update(['status' => 'ativo']);
+            DB::table('users')->where('approved', true)->update(['status' => 'ATIVO']);
             DB::table('users')
                 ->where('approved', false)
                 ->where('type', 'professional')
-                ->update(['status' => 'pendente']);
+                ->update(['status' => 'PENDENTE']);
             DB::table('users')
                 ->where('approved', false)
                 ->where('type', '!=', 'professional')
-                ->update(['status' => 'inativo']);
+                ->update(['status' => 'INATIVO']);
 
             Schema::table('users', function (Blueprint $table) {
                 $table->dropColumn('approved');
@@ -43,8 +43,8 @@ return new class extends Migration
         }
 
         if (Schema::hasColumn('users', 'status')) {
-            DB::table('users')->where('status', 'ativo')->update(['approved' => true]);
-            DB::table('users')->where('status', '!=', 'ativo')->update(['approved' => false]);
+            DB::table('users')->where('status', 'ATIVO')->update(['approved' => true]);
+            DB::table('users')->where('status', '!=', 'ATIVO')->update(['approved' => false]);
 
             Schema::table('users', function (Blueprint $table) {
                 $table->dropColumn('status');

@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('city')->nullable();
             $table->text('bio')->nullable();
             $table->string('cpf', 14)->nullable()->unique();
-            $table->enum('status', ['ativo', 'inativo', 'pendente', 'excluido', 'rejeitado'])->default('ativo');
+            $table->enum('status', ['ATIVO', 'INATIVO', 'PENDENTE', 'EXCLUIDO', 'REJEITADO'])->default('ATIVO');
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             $table->rememberToken();
