@@ -638,6 +638,7 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
           label: 'Categoria de serviço *',
           child: ServiceCategoryPicker(
             value: _category,
+            categoriesOnly: true,
             hintText: 'Selecione uma categoria',
             onChanged: (v) => setState(() => _category = v),
             validator: (v) => v == null ? 'Selecione uma categoria' : null,

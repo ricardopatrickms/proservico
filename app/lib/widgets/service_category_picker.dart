@@ -14,6 +14,9 @@ class ServiceCategoryPicker extends StatefulWidget {
   final Widget? prefixIcon;
   final bool keepUnknownValue;
 
+  /// Quando `true`, lista só categorias raiz (não os serviços/filhos).
+  final bool categoriesOnly;
+
   const ServiceCategoryPicker({
     super.key,
     required this.value,
@@ -23,6 +26,7 @@ class ServiceCategoryPicker extends StatefulWidget {
     this.hintText = 'Selecione a categoria',
     this.prefixIcon,
     this.keepUnknownValue = true,
+    this.categoriesOnly = false,
   });
 
   @override
@@ -71,42 +75,54 @@ class _ServiceCategoryPickerState extends State<ServiceCategoryPicker> {
     final items = <DropdownMenuItem<String>>[];
     final names = <String>{};
 
-    for (final root in _roots) {
-      if (root.hasChildren) {
-        items.add(
-          DropdownMenuItem<String>(
-            enabled: false,
-            value: '__group_${root.id}',
-            child: Text(
-              root.name,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ),
-        );
-        for (final child in root.children) {
-          if (child.name.isEmpty || names.contains(child.name)) continue;
-          names.add(child.name);
-          items.add(
-            DropdownMenuItem<String>(
-              value: child.name,
-              child: Padding(
-                padding: const EdgeInsets.only(left: 8),
-                child: Text(child.name, overflow: TextOverflow.ellipsis),
-              ),
-            ),
-          );
-        }
-      } else if (root.name.isNotEmpty && names.add(root.name)) {
+    if (widget.categoriesOnly) {
+      for (final root in _roots) {
+        if (root.name.isEmpty || !names.add(root.name)) continue;
         items.add(
           DropdownMenuItem<String>(
             value: root.name,
             child: Text(root.name, overflow: TextOverflow.ellipsis),
           ),
         );
+      }
+    } else {
+      for (final root in _roots) {
+        if (root.hasChildren) {
+          items.add(
+            DropdownMenuItem<String>(
+              enabled: false,
+              value: '__group_${root.id}',
+              child: Text(
+                root.name,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+          );
+          for (final child in root.children) {
+            if (child.name.isEmpty || names.contains(child.name)) continue;
+            names.add(child.name);
+            items.add(
+              DropdownMenuItem<String>(
+                value: child.name,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Text(child.name, overflow: TextOverflow.ellipsis),
+                ),
+              ),
+            );
+          }
+        } else if (root.name.isNotEmpty && names.add(root.name)) {
+          items.add(
+            DropdownMenuItem<String>(
+              value: root.name,
+              child: Text(root.name, overflow: TextOverflow.ellipsis),
+            ),
+          );
+        }
       }
     }
 
