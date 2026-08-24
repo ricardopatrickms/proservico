@@ -4,6 +4,7 @@ import '../../services/api_exception.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/helpers.dart';
+import '../../widgets/phone_input_formatter.dart';
 import '../client/client_shell.dart';
 import 'login_screen.dart';
 
@@ -44,7 +45,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final result = await AuthService.instance.registerClient(
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
-        phone: _phoneController.text.trim(),
+        phone: PhoneInputFormatter.digitsOnly(_phoneController.text),
         password: _passwordController.text,
         passwordConfirmation: _confirmController.text,
       );
@@ -199,12 +200,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             child: TextFormField(
                               controller: _phoneController,
                               keyboardType: TextInputType.phone,
+                              inputFormatters: [PhoneInputFormatter()],
                               decoration: const InputDecoration(
                                 hintText: '(XX) XXXXX-XXXX',
                                 prefixIcon: Icon(Icons.phone_outlined),
                               ),
-                              validator: (v) =>
-                                  (v == null || v.trim().length < 8) ? 'Informe o telefone' : null,
+                              validator: (v) {
+                                final digits = PhoneInputFormatter.digitsOnly(v ?? '');
+                                if (digits.length < 10 || digits.length > 11) {
+                                  return 'Informe um telefone válido';
+                                }
+                                return null;
+                              },
                             ),
                           ),
                           _LabeledField(
