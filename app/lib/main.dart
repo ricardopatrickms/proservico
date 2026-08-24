@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:image_picker_android/image_picker_android.dart';
+import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'screens/auth/welcome_screen.dart';
@@ -13,6 +15,12 @@ Future<void> main() async {
   await dotenv.load(fileName: '.env');
   await initializeDateFormatting('pt_BR');
   await SessionStore.instance.load();
+
+  final imagePickerImplementation = ImagePickerPlatform.instance;
+  if (imagePickerImplementation is ImagePickerAndroid) {
+    imagePickerImplementation.useAndroidPhotoPicker = true;
+  }
+
   runApp(const ProServicoApp());
 }
 

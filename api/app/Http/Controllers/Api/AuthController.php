@@ -170,14 +170,17 @@ class AuthController extends Controller
         }
 
         $token = Auth::guard('api')->login($user);
+        $pendingApproval = $user->isProfessional() && $user->isPending();
 
         return response()->json([
-            'message' => 'Cadastro realizado com sucesso',
+            'message' => $pendingApproval
+                ? 'Cadastro enviado com sucesso. Aguarde a aprovação.'
+                : 'Cadastro realizado com sucesso',
             'access_token' => $token,
             'token_type' => 'bearer',
             'expires_in' => Auth::guard('api')->factory()->getTTL() * 60,
             'user' => $user->load('professionalProfile'),
-            'pending_approval' => $user->isProfessional() && $user->isPending(),
+            'pending_approval' => $pendingApproval,
         ], 201);
     }
 
@@ -211,14 +214,6 @@ class AuthController extends Controller
             Auth::guard('api')->logout();
 
             return response()->json(['message' => 'Conta inativa'], 403);
-        }
-
-        if ($user->isProfessional() && $user->isPending()) {
-            Auth::guard('api')->logout();
-
-            return response()->json([
-                'message' => 'Cadastro profissional aguardando aprovação',
-            ], 403);
         }
 
         return $this->respondWithToken($token, $user->load('professionalProfile'));
@@ -394,6 +389,7 @@ class AuthController extends Controller
             'token_type' => 'bearer',
             'expires_in' => Auth::guard('api')->factory()->getTTL() * 60,
             'user' => $user,
+            'pending_approval' => $user->isProfessional() && $user->isPending(),
         ]);
     }
 }

@@ -6,14 +6,16 @@ import 'api_exception.dart';
 import 'session_store.dart';
 
 class AuthResult {
-  final String accessToken;
+  final String? accessToken;
   final AppUser user;
   final String? message;
+  final bool pendingApproval;
 
   const AuthResult({
-    required this.accessToken,
+    this.accessToken,
     required this.user,
     this.message,
+    this.pendingApproval = false,
   });
 }
 
@@ -211,6 +213,8 @@ class AuthService {
       accessToken: token,
       user: user,
       message: data['message']?.toString(),
+      pendingApproval: data['pending_approval'] == true ||
+          (user.type == AccountType.professional && !user.approved),
     );
   }
 }

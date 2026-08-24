@@ -8,9 +8,13 @@ import 'package:image_picker/image_picker.dart';
 import '../../services/api_exception.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/bank_picker.dart';
 import '../../widgets/brand_logo.dart';
+import '../../widgets/cpf_input_formatter.dart';
 import '../../widgets/helpers.dart';
+import '../../widgets/phone_input_formatter.dart';
 import '../../widgets/service_category_picker.dart';
+import '../professional/pending_approval_screen.dart';
 import 'login_screen.dart';
 
 class ProfessionalRegisterScreen extends StatefulWidget {
@@ -49,7 +53,7 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
   final _regionController = TextEditingController();
 
   // Step 2 — Financeiro
-  final _bankController = TextEditingController();
+  String? _bank;
   final _agencyController = TextEditingController();
   final _accountController = TextEditingController();
   String? _accountType;
@@ -61,6 +65,7 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
   _PickedDoc? _certificate;
   _PickedDoc? _criminalRecord;
   _PickedDoc? _profilePhoto;
+  bool _validateDocumentsAttempted = false;
 
   static const _experiences = [
     'Menos de 1 ano',
@@ -83,7 +88,6 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
     _cpfController.dispose();
     _professionController.dispose();
     _regionController.dispose();
-    _bankController.dispose();
     _agencyController.dispose();
     _accountController.dispose();
     _pixKeyController.dispose();
@@ -101,6 +105,11 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
         _profilePhoto != null;
   }
 
+  bool _validateDocuments() {
+    setState(() => _validateDocumentsAttempted = true);
+    return _documentsComplete();
+  }
+
   Future<void> _next() async {
     if (!_formKeys[_step].currentState!.validate()) return;
     if (_loading) return;
@@ -110,8 +119,7 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
       return;
     }
 
-    if (!_documentsComplete()) {
-      showAppSnackBar(context, 'Envie todos os documentos obrigatórios.');
+    if (!_validateDocuments()) {
       return;
     }
 
@@ -120,15 +128,15 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
       await AuthService.instance.registerProfessional(
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
-        phone: _phoneController.text.trim(),
+        phone: PhoneInputFormatter.digitsOnly(_phoneController.text),
         password: _passwordController.text,
         passwordConfirmation: _confirmController.text,
-        cpf: _cpfController.text.trim(),
+        cpf: CpfInputFormatter.digitsOnly(_cpfController.text),
         category: _category,
         profession: _professionController.text.trim(),
         experience: _experience,
         region: _regionController.text.trim(),
-        bank: _bankController.text.trim(),
+        bank: _bank,
         agency: _agencyController.text.trim(),
         account: _accountController.text.trim(),
         accountType: _accountType,
@@ -143,10 +151,13 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
       if (!mounted) return;
       showAppSnackBar(
         context,
-        'Cadastro enviado. Aguarde aprovação do administrador.',
+        'Cadastro enviado. Aguarde a aprovação do administrador.',
       );
 
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const PendingApprovalScreen()),
+        (_) => false,
+      );
     } on ApiException catch (e) {
       if (!mounted) return;
       showAppSnackBar(context, e.displayMessage);
@@ -560,8 +571,15 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
           child: TextFormField(
             controller: _phoneController,
             keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(hintText: '(11) 99999-9999'),
-            validator: (v) => (v == null || v.trim().length < 8) ? 'Obrigatório' : null,
+            inputFormatters: [PhoneInputFormatter()],
+            decoration: const InputDecoration(hintText: '(XX) XXXXX-XXXX'),
+            validator: (v) {
+              final digits = PhoneInputFormatter.digitsOnly(v ?? '');
+              if (digits.length < 10 || digits.length > 11) {
+                return 'Informe um telefone válido';
+              }
+              return null;
+            },
           ),
         ),
         _field(
@@ -603,8 +621,9 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
           child: TextFormField(
             controller: _cpfController,
             keyboardType: TextInputType.number,
+            inputFormatters: [CpfInputFormatter()],
             decoration: const InputDecoration(hintText: '000.000.000-00'),
-            validator: (v) => (v == null || v.trim().length < 11) ? 'CPF inválido' : null,
+            validator: CpfInputFormatter.validator,
           ),
         ),
       ],
@@ -682,10 +701,11 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
         const SizedBox(height: 16),
         _field(
           label: 'Banco *',
-          child: TextFormField(
-            controller: _bankController,
-            decoration: const InputDecoration(hintText: 'Ex: Banco do Brasil, Itaú, etc.'),
-            validator: (v) => (v == null || v.trim().isEmpty) ? 'Obrigatório' : null,
+          child: BankPicker(
+            value: _bank,
+            hintText: 'Selecione o banco',
+            onChanged: (v) => setState(() => _bank = v),
+            validator: (v) => (v == null || v.trim().isEmpty) ? 'Selecione o banco' : null,
           ),
         ),
         Row(
@@ -703,7 +723,7 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
             const SizedBox(width: 12),
             Expanded(
               child: _field(
-                label: 'Conta *',
+                label: 'Conta com dígito *',
                 child: TextFormField(
                   controller: _accountController,
                   decoration: const InputDecoration(hintText: '00000-0'),
@@ -790,6 +810,9 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
           title: 'Documento de identidade (RG ou CNH) *',
           hint: 'PDF, JPG ou PNG, máx. 5MB',
           fileName: _idDocument?.name,
+          errorText: _validateDocumentsAttempted && _idDocument == null
+              ? 'Envie o documento de identidade'
+              : null,
           onPick: () => _pickFile('id'),
           onClear: () => setState(() => _idDocument = null),
         ),
@@ -797,6 +820,9 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
           title: 'Certificado profissional *',
           hint: 'PDF, JPG ou PNG, máx. 5MB',
           fileName: _certificate?.name,
+          errorText: _validateDocumentsAttempted && _certificate == null
+              ? 'Envie o certificado profissional'
+              : null,
           onPick: () => _pickFile('cert'),
           onClear: () => setState(() => _certificate = null),
         ),
@@ -804,6 +830,9 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
           title: 'Certidão de Antecedentes Criminais *',
           hint: 'PDF, JPG ou PNG, máx. 5MB',
           fileName: _criminalRecord?.name,
+          errorText: _validateDocumentsAttempted && _criminalRecord == null
+              ? 'Envie a certidão de antecedentes'
+              : null,
           onPick: () => _pickFile('criminal'),
           onClear: () => setState(() => _criminalRecord = null),
         ),
@@ -811,6 +840,9 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
           title: 'Foto de perfil *',
           hint: 'JPG ou PNG, máx. 2MB',
           fileName: _profilePhoto?.name,
+          errorText: _validateDocumentsAttempted && _profilePhoto == null
+              ? 'Envie a foto de perfil'
+              : null,
           onPick: () => _pickFile('photo'),
           onClear: () => setState(() => _profilePhoto = null),
         ),
@@ -991,6 +1023,7 @@ class _UploadField extends StatelessWidget {
   final String title;
   final String hint;
   final String? fileName;
+  final String? errorText;
   final VoidCallback onPick;
   final VoidCallback onClear;
 
@@ -998,12 +1031,20 @@ class _UploadField extends StatelessWidget {
     required this.title,
     required this.hint,
     required this.fileName,
+    this.errorText,
     required this.onPick,
     required this.onClear,
   });
 
   @override
   Widget build(BuildContext context) {
+    final hasError = errorText != null && errorText!.isNotEmpty;
+    final borderColor = hasError
+        ? AppColors.danger
+        : fileName == null
+            ? AppColors.border
+            : AppColors.primary.withValues(alpha: 0.45);
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: Column(
@@ -1016,9 +1057,8 @@ class _UploadField extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: fileName == null ? AppColors.border : AppColors.primary.withValues(alpha: 0.45),
-              ),
+              border: Border.all(color: borderColor),
+              color: hasError ? AppColors.danger.withValues(alpha: 0.04) : null,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1033,6 +1073,8 @@ class _UploadField extends StatelessWidget {
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         visualDensity: VisualDensity.compact,
                         textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                        side: hasError ? const BorderSide(color: AppColors.danger) : null,
+                        foregroundColor: hasError ? AppColors.danger : null,
                       ),
                       icon: const Icon(Icons.upload_file_outlined, size: 16),
                       label: const Text('Escolher arquivo'),
@@ -1066,6 +1108,13 @@ class _UploadField extends StatelessWidget {
               ],
             ),
           ),
+          if (hasError) ...[
+            const SizedBox(height: 6),
+            Text(
+              errorText!,
+              style: const TextStyle(fontSize: 12, color: AppColors.danger),
+            ),
+          ],
         ],
       ),
     );

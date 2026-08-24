@@ -27,11 +27,11 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Precisamos usar a câmera para fotografar documentos e a foto de perfil no cadastro.</string>
+	<string>Precisamos usar a câmera para fotografar documentos, fotos de serviços e a foto de perfil.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Acesso ao microfone pode ser necessário ao gravar vídeos com a câmera.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Precisamos acessar suas fotos e arquivos para o cadastro de documentos do profissional.</string>
+	<string>Precisamos acessar sua galeria para selecionar fotos de perfil, documentos e imagens dos serviços.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
