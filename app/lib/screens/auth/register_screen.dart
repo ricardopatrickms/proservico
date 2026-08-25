@@ -58,9 +58,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
         (_) => false,
       );
     } on ApiException catch (e) {
+      debugPrint(
+        '[Register] ApiException status=${e.statusCode} '
+        'message=${e.message} display=${e.displayMessage} errors=${e.errors}',
+      );
       if (!mounted) return;
       showAppSnackBar(context, e.displayMessage);
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('[Register] erro inesperado: $e\n$st');
       if (!mounted) return;
       showAppSnackBar(context, 'Não foi possível criar a conta. Tente novamente.');
     } finally {

@@ -13,6 +13,7 @@ import 'theme/app_theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env');
+  debugPrint('[boot] API_BASE_URL=${dotenv.env['API_BASE_URL']}');
   await initializeDateFormatting('pt_BR');
   await SessionStore.instance.load();
 

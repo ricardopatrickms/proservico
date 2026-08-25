@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../config/api_config.dart';
@@ -10,6 +12,14 @@ import 'session_store.dart';
 class ApiClient {
   ApiClient._();
   static final ApiClient instance = ApiClient._();
+
+  static const _tag = 'ApiClient';
+
+  void _log(String message) {
+    if (!kDebugMode) return;
+    debugPrint('[$_tag] $message');
+    developer.log(message, name: _tag);
+  }
 
   Uri _uri(String path) {
     final base = ApiConfig.baseUrl;
@@ -33,8 +43,12 @@ class ApiClient {
     String path, {
     bool auth = false,
   }) async {
+    final uri = _uri(path);
+    _log('GET $uri');
     final response = await _send(
-      () => http.get(_uri(path), headers: _headers(auth: auth)),
+      () => http.get(uri, headers: _headers(auth: auth)),
+      method: 'GET',
+      uri: uri,
     );
     return _decodeMap(response, auth: auth, path: path);
   }
@@ -43,8 +57,12 @@ class ApiClient {
     String path, {
     bool auth = false,
   }) async {
+    final uri = _uri(path);
+    _log('GET $uri');
     final response = await _send(
-      () => http.get(_uri(path), headers: _headers(auth: auth)),
+      () => http.get(uri, headers: _headers(auth: auth)),
+      method: 'GET',
+      uri: uri,
     );
     return _decodeList(response, auth: auth, path: path);
   }
@@ -54,12 +72,19 @@ class ApiClient {
     Map<String, dynamic>? body,
     bool auth = false,
   }) async {
+    final uri = _uri(path);
+    _log('POST $uri');
+    if (body != null) {
+      _log('body keys: ${body.keys.join(', ')}');
+    }
     final response = await _send(
       () => http.post(
-        _uri(path),
+        uri,
         headers: _headers(auth: auth),
         body: body == null ? null : jsonEncode(body),
       ),
+      method: 'POST',
+      uri: uri,
     );
     return _decodeMap(response, auth: auth, path: path);
   }
@@ -163,16 +188,38 @@ class ApiClient {
   Future<http.Response> _send(
     Future<http.Response> Function() request, {
     Duration timeout = const Duration(seconds: 20),
+    String method = 'REQUEST',
+    Uri? uri,
   }) async {
+    final started = DateTime.now();
     try {
-      return await request().timeout(timeout);
+      final response = await request().timeout(timeout);
+      final ms = DateTime.now().difference(started).inMilliseconds;
+      _log(
+        '$method ${uri ?? ''} → ${response.statusCode} (${ms}ms) '
+        'body=${_preview(response.body)}',
+      );
+      return response;
     } on ApiException {
       rethrow;
-    } catch (_) {
-      throw const ApiException(
-        'Não foi possível conectar à API. Verifique se o servidor está rodando.',
+    } catch (e, st) {
+      final ms = DateTime.now().difference(started).inMilliseconds;
+      _log(
+        'FALHA $method ${uri ?? ''} após ${ms}ms: '
+        '${e.runtimeType}: $e',
+      );
+      _log('stack: $st');
+      throw ApiException(
+        'Não foi possível conectar à API. Verifique se o servidor está rodando. ($e)',
       );
     }
+  }
+
+  String _preview(String body, {int max = 400}) {
+    if (body.isEmpty) return '(vazio)';
+    final compact = body.replaceAll(RegExp(r'\s+'), ' ');
+    if (compact.length <= max) return compact;
+    return '${compact.substring(0, max)}…';
   }
 
   Map<String, dynamic> _decodeMap(
@@ -186,7 +233,9 @@ class ApiClient {
       return {'data': decoded};
     }
     _handleUnauthorizedIfNeeded(response, auth: auth, path: path);
-    throw _error(response, decoded);
+    final error = _error(response, decoded);
+    _log('erro HTTP ${response.statusCode} em $path: ${error.displayMessage}');
+    throw error;
   }
 
   List<dynamic> _decodeList(
