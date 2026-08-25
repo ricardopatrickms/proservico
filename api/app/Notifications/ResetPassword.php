@@ -6,6 +6,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\HtmlString;
 
 class ResetPassword extends Notification
 {
@@ -33,6 +34,8 @@ class ResetPassword extends Notification
             ->line('Você está recebendo este e-mail porque recebemos uma solicitação de redefinição de senha para a sua conta.')
             ->action('Redefinir senha', $url)
             ->line('Este link expira em 60 minutos.')
-            ->line('Se você não solicitou a redefinição de senha, nenhuma ação é necessária.');
+            ->line('Se você não solicitou a redefinição de senha, nenhuma ação é necessária.')
+            // Evita o fechamento padrão em inglês ("Regards,").
+            ->salutation(new HtmlString(''));
     }
 }

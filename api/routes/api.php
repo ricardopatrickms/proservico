@@ -49,6 +49,7 @@ Route::middleware('auth:api')->group(function () {
     Route::prefix('admin')->group(function () {
         Route::get('dashboard', [AdminController::class, 'dashboard']);
         Route::get('users', [AdminController::class, 'users']);
+        Route::get('users/{user}', [AdminController::class, 'showUser']);
         Route::patch('users/{user}/approval', [AdminController::class, 'setApproval']);
         Route::get('service-requests', [AdminController::class, 'serviceRequests']);
         Route::get('service-categories', [ServiceCategoryController::class, 'index']);

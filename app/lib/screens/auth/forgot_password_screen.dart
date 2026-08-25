@@ -64,7 +64,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Se o e-mail estiver cadastrado, você receberá um link para redefinir a senha.',
+                    'Enviamos um link para redefinir a senha. Verifique sua caixa de entrada.',
                     style: TextStyle(color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: 24),

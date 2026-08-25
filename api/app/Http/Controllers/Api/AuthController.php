@@ -326,12 +326,16 @@ class AuthController extends Controller
         ]);
 
         $user = User::where('email', $data['email'])->first();
-        if ($user) {
-            $user->notify(new ResetPassword);
+        if (! $user) {
+            return response()->json([
+                'message' => 'E-mail não cadastrado.',
+            ], 404);
         }
 
+        $user->notify(new ResetPassword);
+
         return response()->json([
-            'message' => 'Se o e-mail estiver cadastrado, enviaremos um link de recuperação.',
+            'message' => 'Enviamos um link de recuperação para o seu e-mail.',
         ]);
     }
 

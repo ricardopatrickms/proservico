@@ -46,13 +46,30 @@ class AdminController extends Controller
         }
 
         if ($request->filled('status')) {
-            $query->where('status', $request->string('status'));
+            $status = UserStatus::tryFrom(strtoupper((string) $request->input('status')));
+            if ($status) {
+                $query->where('status', $status);
+            }
         } elseif ($request->has('approved')) {
             $approved = filter_var($request->input('approved'), FILTER_VALIDATE_BOOLEAN);
             $query->where('status', $approved ? UserStatus::Ativo : UserStatus::Pendente);
         }
 
         return response()->json($query->get());
+    }
+
+    public function showUser(User $user): JsonResponse
+    {
+        $this->ensureAdmin();
+
+        if (! $user->isProfessional()) {
+            return response()->json(['message' => 'Usuário não é profissional'], 404);
+        }
+
+        $user->load('professionalProfile')
+            ->loadCount(['serviceRequests', 'professionalServices', 'assignedServices']);
+
+        return response()->json($user);
     }
 
     public function setApproval(Request $request, User $user): JsonResponse
@@ -63,6 +80,10 @@ class AdminController extends Controller
             return response()->json(['message' => 'Apenas profissionais precisam de aprovação'], 422);
         }
 
+        if ($request->filled('status') && is_string($request->input('status'))) {
+            $request->merge(['status' => strtoupper($request->string('status')->toString())]);
+        }
+
         $data = $request->validate([
             'status' => ['required_without:approved', Rule::enum(UserStatus::class)],
             'approved' => ['required_without:status', 'boolean'],
@@ -70,7 +91,7 @@ class AdminController extends Controller
 
         $status = $data['status'] ?? ($data['approved'] ? UserStatus::Ativo : UserStatus::Rejeitado);
         if (! $status instanceof UserStatus) {
-            $status = UserStatus::from((string) $status);
+            $status = UserStatus::from(strtoupper((string) $status));
         }
 
         $user->update(['status' => $status]);
