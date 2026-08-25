@@ -27,6 +27,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _loading = false;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).clearSnackBars();
+    });
+  }
+
+  @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
@@ -51,7 +60,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
 
       if (!mounted) return;
-      showAppSnackBar(context, result.message ?? 'Conta criada com sucesso');
+      final successMessage = (result.message ?? '').trim();
+      showAppSnackBar(
+        context,
+        successMessage.isEmpty ? 'Conta criada com sucesso' : successMessage,
+      );
 
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const ClientShell()),

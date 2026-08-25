@@ -282,8 +282,11 @@ class ApiClient {
   ApiException _error(http.Response response, dynamic decoded) {
     Map<String, dynamic> data = {};
     if (decoded is Map<String, dynamic>) data = decoded;
+    final rawMessage = data['message']?.toString().trim();
     return ApiException(
-      data['message']?.toString() ?? 'Erro na requisição (${response.statusCode})',
+      (rawMessage != null && rawMessage.isNotEmpty)
+          ? rawMessage
+          : 'Erro na requisição (${response.statusCode})',
       statusCode: response.statusCode,
       errors: data['errors'] is Map<String, dynamic>
           ? data['errors'] as Map<String, dynamic>

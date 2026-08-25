@@ -30,9 +30,12 @@ class ApiException implements Exception {
       final raw = first is List && first.isNotEmpty
           ? first.first.toString()
           : first.toString();
-      return _friendly(raw, entry.key);
+      final friendly = _friendly(raw, entry.key).trim();
+      if (friendly.isNotEmpty) return friendly;
     }
-    return _friendly(message, null);
+    final friendly = _friendly(message, null).trim();
+    if (friendly.isNotEmpty) return friendly;
+    return 'Não foi possível concluir. Tente novamente.';
   }
 
   static String _friendly(String raw, String? field) {
