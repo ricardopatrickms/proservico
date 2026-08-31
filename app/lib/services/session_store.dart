@@ -1,6 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../data/mock_store.dart';
 import '../models/user.dart';
 
 class SessionStore {
@@ -10,6 +9,7 @@ class SessionStore {
   static const _tokenKey = 'access_token';
 
   String? accessToken;
+  AppUser? currentUser;
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -21,14 +21,14 @@ class SessionStore {
     required AppUser user,
   }) async {
     accessToken = token;
-    MockStore.instance.currentUser = user;
+    currentUser = user;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_tokenKey, token);
   }
 
   Future<void> clear() async {
     accessToken = null;
-    MockStore.instance.logout();
+    currentUser = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
   }

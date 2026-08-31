@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../data/client_requests_store.dart';
-import '../../data/mock_store.dart';
 import '../../models/service_request.dart';
 import '../../services/auth_service.dart';
+import '../../services/session_store.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_menu_screen.dart';
 import '../auth/welcome_screen.dart';
@@ -44,7 +44,7 @@ class _ClientShellState extends State<ClientShell> {
   late final Widget _profilePage = const ClientProfileScreen();
 
   String get _userName {
-    final name = MockStore.instance.currentUser?.name.trim() ?? 'Cliente';
+    final name = SessionStore.instance.currentUser?.name.trim() ?? 'Cliente';
     return name.isEmpty ? 'Cliente' : name.split(RegExp(r'\s+')).first;
   }
 

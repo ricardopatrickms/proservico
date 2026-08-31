@@ -161,6 +161,15 @@ class User extends Authenticatable implements JWTSubject
         return static::query()->withCpf($cpf)->first();
     }
 
+    public static function emailTaken(string $email, ?int $ignoreUserId = null): bool
+    {
+        return static::query()
+            ->where('email', $email)
+            ->when($ignoreUserId, fn (Builder $query) => $query->where('id', '!=', $ignoreUserId))
+            ->whereNotIn('status', [UserStatus::Rejeitado, UserStatus::Excluido])
+            ->exists();
+    }
+
     public static function cpfTaken(string $cpf, ?int $ignoreUserId = null): bool
     {
         return static::query()

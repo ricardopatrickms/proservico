@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../data/mock_store.dart';
 import '../../models/service_request.dart';
+import '../../services/api_exception.dart';
+import '../../services/professional_service_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/helpers.dart';
 import '../../widgets/service_category_picker.dart';
@@ -17,11 +18,13 @@ class ServiceFormScreen extends StatefulWidget {
 
 class _ServiceFormScreenState extends State<ServiceFormScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _api = ProfessionalServiceService.instance;
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _priceController;
   String? _category;
   late bool _active;
+  bool _saving = false;
 
   bool get _isEditing => widget.service != null;
 
@@ -46,39 +49,47 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
     super.dispose();
   }
 
-  void _save() {
-    if (!_formKey.currentState!.validate()) return;
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate() || _saving) return;
     final category = _category?.trim() ?? '';
     if (category.isEmpty) return;
 
     final price = double.tryParse(_priceController.text.replaceAll(',', '.')) ?? 0;
 
-    if (_isEditing) {
-      MockStore.instance.updateProfessionalService(
-        widget.service!.copyWith(
+    setState(() => _saving = true);
+    try {
+      if (_isEditing) {
+        await _api.update(
+          widget.service!.id,
           title: _titleController.text.trim(),
           category: category,
           description: _descriptionController.text.trim(),
           priceFrom: price,
           active: _active,
-        ),
-      );
-      showAppSnackBar(context, 'Serviço atualizado');
-    } else {
-      MockStore.instance.addProfessionalService(
-        ProfessionalService(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
+        );
+        if (!mounted) return;
+        showAppSnackBar(context, 'Serviço atualizado');
+      } else {
+        await _api.create(
           title: _titleController.text.trim(),
           category: category,
           description: _descriptionController.text.trim(),
           priceFrom: price,
           active: _active,
-        ),
-      );
-      showAppSnackBar(context, 'Serviço cadastrado');
+        );
+        if (!mounted) return;
+        showAppSnackBar(context, 'Serviço cadastrado');
+      }
+      Navigator.pop(context, true);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.displayMessage);
+    } catch (_) {
+      if (!mounted) return;
+      showAppSnackBar(context, 'Não foi possível salvar o serviço.');
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
-
-    Navigator.pop(context);
   }
 
   @override
@@ -129,12 +140,18 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
               title: const Text('Serviço ativo'),
               subtitle: const Text('Visível para clientes'),
               value: _active,
-              onChanged: (v) => setState(() => _active = v),
+              onChanged: _saving ? null : (v) => setState(() => _active = v),
             ),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: _save,
-              child: Text(_isEditing ? 'Salvar alterações' : 'Cadastrar'),
+              onPressed: _saving ? null : _save,
+              child: _saving
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : Text(_isEditing ? 'Salvar alterações' : 'Cadastrar'),
             ),
             const SizedBox(height: 8),
             const Text(

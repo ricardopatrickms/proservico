@@ -60,8 +60,6 @@ Authorization: Bearer {access_token}
 | POST | `/api/auth/logout` | Logout |
 | POST | `/api/auth/refresh` | Renovar token |
 
-### Usuários seed (senha: `password`)
+### Usuário seed
 
-- Admin: `admin@proservico.com`
-- Cliente: `maria@email.com`
-- Profissional: `carlos@email.com`
+- Admin: `admin@gmail.com` / `@Admin123`

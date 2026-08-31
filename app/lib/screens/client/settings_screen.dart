@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../data/client_requests_store.dart';
-import '../../data/mock_store.dart';
+import '../../models/user.dart';
 import '../../services/auth_service.dart';
+import '../../services/session_store.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/helpers.dart';
 import '../auth/welcome_screen.dart';
@@ -26,10 +27,9 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = MockStore.instance.currentUser!;
-    final roleLabel = switch (user.type.name) {
-      'professional' => 'Profissional',
-      'admin' => 'Administrador',
+    final roleLabel = switch (SessionStore.instance.currentUser?.type) {
+      AccountType.professional => 'Profissional',
+      AccountType.admin => 'Administrador',
       _ => 'Cliente',
     };
 

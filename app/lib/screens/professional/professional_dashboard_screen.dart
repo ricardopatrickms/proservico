@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../data/mock_store.dart';
+import '../../services/session_store.dart';
 import '../../theme/app_theme.dart';
 import 'professional_placeholder_screen.dart';
 
@@ -9,7 +9,7 @@ class ProfessionalDashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = MockStore.instance.currentUser;
+    final user = SessionStore.instance.currentUser;
     final firstName = (user?.name.trim().isNotEmpty == true)
         ? user!.name.trim().split(RegExp(r'\s+')).first
         : 'profissional';

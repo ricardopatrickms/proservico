@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../config/api_config.dart';
-import '../../data/mock_store.dart';
 import '../../models/user_address.dart';
+import '../../services/session_store.dart';
 import '../../services/address_service.dart';
 import '../../services/api_exception.dart';
 import '../../services/auth_service.dart';
@@ -42,7 +42,7 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
   @override
   void initState() {
     super.initState();
-    final user = MockStore.instance.currentUser;
+    final user = SessionStore.instance.currentUser;
     _nameController = TextEditingController(text: user?.name ?? '');
     _emailController = TextEditingController(text: user?.email ?? '');
     _phoneController = TextEditingController(text: user?.phone ?? '');
@@ -269,7 +269,7 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
         name: name,
         email: email,
         phone: phone,
-        city: MockStore.instance.currentUser?.city,
+        city: SessionStore.instance.currentUser?.city,
         profilePhotoPath: _pickedPhotoPath,
       );
       if (!mounted) return;
@@ -454,7 +454,7 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
         phone: _phoneController.text.trim(),
-        city: MockStore.instance.currentUser?.city,
+        city: SessionStore.instance.currentUser?.city,
         serviceAreas: _areas.toList(),
       );
       if (!mounted) return;
@@ -474,7 +474,7 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final name = _nameController.text.trim().isEmpty
-        ? (MockStore.instance.currentUser?.name ?? 'Profissional')
+        ? (SessionStore.instance.currentUser?.name ?? 'Profissional')
         : _nameController.text.trim();
 
     if (_loadingProfile) {

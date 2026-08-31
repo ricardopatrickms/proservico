@@ -19,6 +19,16 @@ class AuthResult {
   });
 }
 
+class AccountAvailability {
+  final bool emailTaken;
+  final bool cpfTaken;
+
+  const AccountAvailability({
+    required this.emailTaken,
+    required this.cpfTaken,
+  });
+}
+
 class AuthService {
   AuthService._();
   static final AuthService instance = AuthService._();
@@ -179,6 +189,20 @@ class AuthService {
       throw const ApiException('Resposta inválida da API');
     }
     return AppUser.fromJson(userJson);
+  }
+
+  Future<AccountAvailability> checkAccount({
+    required String email,
+    String? cpf,
+  }) async {
+    final data = await _api.post('/auth/check-account', body: {
+      'email': email,
+      if (cpf != null && cpf.isNotEmpty) 'cpf': cpf,
+    });
+    return AccountAvailability(
+      emailTaken: data['email_taken'] == true,
+      cpfTaken: data['cpf_taken'] == true,
+    );
   }
 
   Future<void> sendForgotPassword({required String email}) async {

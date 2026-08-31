@@ -45,6 +45,8 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
   final _cpfController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
+  String? _emailRemoteError;
+  String? _cpfRemoteError;
 
   // Step 1 — Perfil
   String? _category;
@@ -113,6 +115,39 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
   Future<void> _next() async {
     if (!_formKeys[_step].currentState!.validate()) return;
     if (_loading) return;
+
+    if (_step == 0) {
+      setState(() => _loading = true);
+      try {
+        final check = await AuthService.instance.checkAccount(
+          email: _emailController.text.trim(),
+          cpf: CpfInputFormatter.digitsOnly(_cpfController.text),
+        );
+        if (!mounted) return;
+        if (check.emailTaken || check.cpfTaken) {
+          setState(() {
+            _emailRemoteError =
+                check.emailTaken ? 'Este e-mail já está cadastrado.' : null;
+            _cpfRemoteError =
+                check.cpfTaken ? 'Este CPF já está cadastrado.' : null;
+          });
+          return;
+        }
+      } on ApiException catch (e) {
+        if (!mounted) return;
+        showAppSnackBar(context, e.displayMessage);
+        return;
+      } catch (_) {
+        if (!mounted) return;
+        showAppSnackBar(
+          context,
+          'Não foi possível validar e-mail e CPF. Tente novamente.',
+        );
+        return;
+      } finally {
+        if (mounted) setState(() => _loading = false);
+      }
+    }
 
     if (_step < _steps.length - 1) {
       setState(() => _step++);
@@ -562,7 +597,15 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
           child: TextFormField(
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(hintText: 'exemplo@email.com'),
+            decoration: InputDecoration(
+              hintText: 'exemplo@email.com',
+              errorText: _emailRemoteError,
+            ),
+            onChanged: (_) {
+              if (_emailRemoteError != null) {
+                setState(() => _emailRemoteError = null);
+              }
+            },
             validator: (v) => (v == null || !v.contains('@')) ? 'E-mail inválido' : null,
           ),
         ),
@@ -622,7 +665,15 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
             controller: _cpfController,
             keyboardType: TextInputType.number,
             inputFormatters: [CpfInputFormatter()],
-            decoration: const InputDecoration(hintText: '000.000.000-00'),
+            decoration: InputDecoration(
+              hintText: '000.000.000-00',
+              errorText: _cpfRemoteError,
+            ),
+            onChanged: (_) {
+              if (_cpfRemoteError != null) {
+                setState(() => _cpfRemoteError = null);
+              }
+            },
             validator: CpfInputFormatter.validator,
           ),
         ),

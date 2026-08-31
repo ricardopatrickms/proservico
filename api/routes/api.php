@@ -13,6 +13,7 @@ Route::get('service-categories', [ServiceCategoryController::class, 'catalog']);
 
 Route::prefix('auth')->group(function () {
     Route::post('register', [AuthController::class, 'register']);
+    Route::post('check-account', [AuthController::class, 'checkAccount']);
     Route::post('login', [AuthController::class, 'login']);
     Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('reset-password', [AuthController::class, 'resetPassword']);

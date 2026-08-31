@@ -335,6 +335,17 @@ class ProfessionalService {
     this.active = true,
   });
 
+  factory ProfessionalService.fromJson(Map<String, dynamic> json) {
+    return ProfessionalService(
+      id: json['id'].toString(),
+      title: json['title']?.toString() ?? '',
+      category: json['category']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
+      priceFrom: double.tryParse(json['price_from']?.toString() ?? '') ?? 0,
+      active: json['active'] == true || json['active'] == 1 || json['active'] == '1',
+    );
+  }
+
   ProfessionalService copyWith({
     String? title,
     String? category,

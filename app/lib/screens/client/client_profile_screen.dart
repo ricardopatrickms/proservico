@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../config/api_config.dart';
-import '../../data/mock_store.dart';
 import '../../models/user_address.dart';
+import '../../services/session_store.dart';
 import '../../services/address_service.dart';
 import '../../services/api_exception.dart';
 import '../../services/auth_service.dart';
@@ -35,11 +35,11 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
   @override
   void initState() {
     super.initState();
-    final user = MockStore.instance.currentUser!;
-    _nameController = TextEditingController(text: user.name);
-    _emailController = TextEditingController(text: user.email);
-    _phoneController = TextEditingController(text: user.phone);
-    _existingPhotoUrl = user.profilePhotoUrl;
+    final user = SessionStore.instance.currentUser;
+    _nameController = TextEditingController(text: user?.name ?? '');
+    _emailController = TextEditingController(text: user?.email ?? '');
+    _phoneController = TextEditingController(text: user?.phone ?? '');
+    _existingPhotoUrl = user?.profilePhotoUrl;
     _loadAddresses();
   }
 
@@ -208,7 +208,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
         name: name,
         email: email,
         phone: phone,
-        city: MockStore.instance.currentUser?.city,
+        city: SessionStore.instance.currentUser?.city,
         profilePhotoPath: _pickedPhotoPath,
       );
       if (!mounted) return;
@@ -394,7 +394,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = MockStore.instance.currentUser;
+    final user = SessionStore.instance.currentUser;
     final name = _nameController.text.trim().isEmpty
         ? (user?.name ?? 'Cliente')
         : _nameController.text.trim();

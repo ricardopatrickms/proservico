@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../data/mock_store.dart';
 import '../../services/auth_service.dart';
+import '../../services/session_store.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_menu_screen.dart';
 import '../auth/welcome_screen.dart';
@@ -34,12 +34,12 @@ class _ProfessionalShellState extends State<ProfessionalShell> {
   int _mobileTab = 1;
 
   String get _userName {
-    final name = MockStore.instance.currentUser?.name.trim() ?? 'Profissional';
+    final name = SessionStore.instance.currentUser?.name.trim() ?? 'Profissional';
     return name.isEmpty ? 'Profissional' : name.split(RegExp(r'\s+')).first;
   }
 
   String get _initial {
-    final name = MockStore.instance.currentUser?.name.trim() ?? 'P';
+    final name = SessionStore.instance.currentUser?.name.trim() ?? 'P';
     return name.isNotEmpty ? name[0].toUpperCase() : 'P';
   }
 

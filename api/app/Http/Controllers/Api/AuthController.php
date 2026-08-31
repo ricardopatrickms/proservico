@@ -184,6 +184,27 @@ class AuthController extends Controller
         ], 201);
     }
 
+    public function checkAccount(Request $request): JsonResponse
+    {
+        $request->merge([
+            'cpf' => filled($request->input('cpf'))
+                ? preg_replace('/\D+/', '', (string) $request->input('cpf'))
+                : null,
+        ]);
+
+        $data = $request->validate([
+            'email' => ['required', 'email', 'max:255'],
+            'cpf' => ['nullable', 'string', 'size:11'],
+        ], [
+            'cpf.size' => 'Informe um CPF válido com 11 dígitos.',
+        ]);
+
+        return response()->json([
+            'email_taken' => User::emailTaken($data['email']),
+            'cpf_taken' => ! empty($data['cpf']) && User::cpfTaken($data['cpf']),
+        ]);
+    }
+
     public function login(Request $request): JsonResponse
     {
         $credentials = $request->validate([

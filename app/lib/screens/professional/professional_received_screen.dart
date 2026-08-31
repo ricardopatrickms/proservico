@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../data/mock_store.dart';
 import '../../models/service_request.dart';
 import '../../models/user.dart';
 import '../../services/api_exception.dart';
+import '../../services/session_store.dart';
 import '../../services/service_proposal_service.dart';
 import '../../services/service_request_service.dart';
 import '../../theme/app_theme.dart';
@@ -211,7 +211,7 @@ class _ProfessionalReceivedScreenState
   }
 
   Future<void> _openProposeSheet(ServiceRequest request) async {
-    final user = MockStore.instance.currentUser;
+    final user = SessionStore.instance.currentUser;
     if (user == null || user.type != AccountType.professional) {
       showAppSnackBar(
         context,

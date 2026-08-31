@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../data/client_requests_store.dart';
-import '../../data/mock_store.dart';
+import '../../services/session_store.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/service_cards.dart';
@@ -41,7 +41,7 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = MockStore.instance.currentUser;
+    final user = SessionStore.instance.currentUser;
     final name = user?.name ?? 'Cliente';
 
     return Scaffold(

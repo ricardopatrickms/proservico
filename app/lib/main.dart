@@ -5,6 +5,7 @@ import 'package:image_picker_android/image_picker_android.dart';
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'config/api_config.dart';
 import 'screens/auth/welcome_screen.dart';
 import 'services/session_expiry.dart';
 import 'services/session_store.dart';
@@ -13,7 +14,7 @@ import 'theme/app_theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env');
-  debugPrint('[boot] API_BASE_URL=${dotenv.env['API_BASE_URL']}');
+  debugPrint('[boot] API_BASE_URL=${ApiConfig.baseUrl}');
   await initializeDateFormatting('pt_BR');
   await SessionStore.instance.load();
 
