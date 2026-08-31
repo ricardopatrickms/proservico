@@ -48,6 +48,38 @@ class AppUser {
     );
   }
 
+  factory AppUser.fromCache(Map<String, dynamic> json) {
+    return AppUser(
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+      phone: json['phone']?.toString() ?? '',
+      type: accountTypeFromApi(json['type']?.toString()),
+      city: json['city']?.toString(),
+      bio: json['bio']?.toString(),
+      approved: json['approved'] == true,
+      profilePhotoUrl: json['profile_photo_url']?.toString(),
+      serviceAreas: (json['service_areas'] as List?)
+              ?.map((e) => e.toString())
+              .where((e) => e.isNotEmpty)
+              .toList() ??
+          const [],
+    );
+  }
+
+  Map<String, dynamic> toCacheJson() => {
+        'id': id,
+        'name': name,
+        'email': email,
+        'phone': phone,
+        'type': type.apiValue,
+        'city': city,
+        'bio': bio,
+        'approved': approved,
+        'profile_photo_url': profilePhotoUrl,
+        'service_areas': serviceAreas,
+      };
+
   AppUser copyWith({
     String? name,
     String? email,

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../services/auth_navigation.dart';
 import '../../services/api_exception.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/helpers.dart';
 import '../../widgets/phone_input_formatter.dart';
-import '../client/client_shell.dart';
 import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -67,7 +67,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
 
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const ClientShell()),
+        MaterialPageRoute(builder: (_) => homeForUser(result.user)),
         (_) => false,
       );
     } on ApiException catch (e) {

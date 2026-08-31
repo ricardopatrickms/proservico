@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+import '../services/app_image_picker.dart';
 
 String formatDate(DateTime date) {
   return DateFormat("dd/MM/yyyy 'às' HH:mm", 'pt_BR').format(date);
@@ -21,6 +24,30 @@ void showAppSnackBar(BuildContext context, String message) {
   messenger.clearSnackBars();
   messenger.showSnackBar(
     SnackBar(content: Text(text), behavior: SnackBarBehavior.floating),
+  );
+}
+
+void showMediaPermissionSnackBar(
+  BuildContext context,
+  MediaPermissionDeniedException error,
+) {
+  final text = error.message.trim().isEmpty
+      ? 'Permissão negada.'
+      : error.message.trim();
+
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.clearSnackBars();
+  messenger.showSnackBar(
+    SnackBar(
+      content: Text(text),
+      behavior: SnackBarBehavior.floating,
+      action: error.permanentlyDenied
+          ? SnackBarAction(
+              label: 'Ajustes',
+              onPressed: openAppSettings,
+            )
+          : null,
+    ),
   );
 }
 

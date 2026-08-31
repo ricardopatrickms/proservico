@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../models/user.dart';
+import '../../services/auth_navigation.dart';
 import '../../services/api_exception.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/brand_logo.dart';
 import '../../widgets/helpers.dart';
-import '../client/client_shell.dart';
-import '../professional/pending_approval_screen.dart';
-import '../professional/professional_shell.dart';
-import '../shared/admin_shell.dart';
 import 'forgot_password_screen.dart';
 import 'professional_register_screen.dart';
 import 'register_screen.dart';
@@ -48,22 +45,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      final Widget home;
       if (result.user.type == AccountType.professional &&
           (result.pendingApproval || !result.user.approved)) {
         showAppSnackBar(context, 'Cadastro aguardando aprovação');
-        home = const PendingApprovalScreen();
       } else {
         showAppSnackBar(context, 'Login realizado com sucesso');
-        home = switch (result.user.type) {
-          AccountType.professional => const ProfessionalShell(),
-          AccountType.admin => const AdminShell(),
-          AccountType.client => const ClientShell(),
-        };
       }
 
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => home),
+        MaterialPageRoute(builder: (_) => homeForUser(result.user)),
         (_) => false,
       );
     } on ApiException catch (e) {

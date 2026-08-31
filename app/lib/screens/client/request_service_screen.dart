@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../data/client_requests_store.dart';
 import '../../models/service_request.dart';
+import '../../services/app_image_picker.dart';
 import '../../services/api_exception.dart';
 import '../../services/service_request_service.dart';
 import '../../theme/app_theme.dart';
@@ -106,12 +107,13 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
                     ),
                   ),
                 ),
-                ListTile(
-                  leading: const Icon(Icons.photo_camera_outlined, color: AppColors.primary),
-                  title: const Text('Câmera'),
-                  subtitle: const Text('Tirar uma foto agora'),
-                  onTap: () => Navigator.pop(context, ImageSource.camera),
-                ),
+                if (AppImagePicker.isCameraAvailable)
+                  ListTile(
+                    leading: const Icon(Icons.photo_camera_outlined, color: AppColors.primary),
+                    title: const Text('Câmera'),
+                    subtitle: const Text('Tirar uma foto agora'),
+                    onTap: () => Navigator.pop(context, ImageSource.camera),
+                  ),
                 ListTile(
                   leading: const Icon(Icons.photo_outlined, color: AppColors.primary),
                   title: const Text('Galeria'),
@@ -140,9 +142,8 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
     if (!mounted) return;
 
     try {
-      final image = await ImagePicker().pickImage(
+      final image = await AppImagePicker.pickImage(
         source: source,
-        imageQuality: 85,
         maxWidth: 1920,
       );
       if (image == null || !mounted) return;
@@ -155,6 +156,12 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
       }
 
       setState(() => _photos.add(image));
+    } on CameraUnavailableException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.message);
+    } on MediaPermissionDeniedException catch (e) {
+      if (!mounted) return;
+      showMediaPermissionSnackBar(context, e);
     } catch (_) {
       if (!mounted) return;
       showAppSnackBar(context, 'Não foi possível adicionar a foto.');

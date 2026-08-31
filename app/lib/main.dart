@@ -6,7 +6,7 @@ import 'package:image_picker_platform_interface/image_picker_platform_interface.
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'config/api_config.dart';
-import 'screens/auth/welcome_screen.dart';
+import 'screens/auth/bootstrap_screen.dart';
 import 'services/session_expiry.dart';
 import 'services/session_store.dart';
 import 'theme/app_theme.dart';
@@ -20,7 +20,8 @@ Future<void> main() async {
 
   final imagePickerImplementation = ImagePickerPlatform.instance;
   if (imagePickerImplementation is ImagePickerAndroid) {
-    imagePickerImplementation.useAndroidPhotoPicker = true;
+    // Galeria com permissão explícita (estilo Telegram), não o seletor sem permissão.
+    imagePickerImplementation.useAndroidPhotoPicker = false;
   }
 
   runApp(const ProServicoApp());
@@ -43,7 +44,7 @@ class ProServicoApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      home: const WelcomeScreen(),
+      home: const BootstrapScreen(),
     );
   }
 }

@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../config/api_config.dart';
 import '../../models/user_address.dart';
+import '../../services/app_image_picker.dart';
 import '../../services/session_store.dart';
 import '../../services/address_service.dart';
 import '../../services/api_exception.dart';
@@ -101,12 +102,13 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                     ),
                   ),
                 ),
-                ListTile(
-                  leading: const Icon(Icons.photo_camera_outlined, color: AppColors.primary),
-                  title: const Text('Câmera'),
-                  subtitle: const Text('Tirar uma foto agora'),
-                  onTap: () => Navigator.pop(context, _PickSource.camera),
-                ),
+                if (AppImagePicker.isCameraAvailable)
+                  ListTile(
+                    leading: const Icon(Icons.photo_camera_outlined, color: AppColors.primary),
+                    title: const Text('Câmera'),
+                    subtitle: const Text('Tirar uma foto agora'),
+                    onTap: () => Navigator.pop(context, _PickSource.camera),
+                  ),
                 ListTile(
                   leading: const Icon(Icons.photo_outlined, color: AppColors.primary),
                   title: const Text('Galeria'),
@@ -129,11 +131,9 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
     if (!mounted) return;
 
     try {
-      final image = await ImagePicker().pickImage(
+      final image = await AppImagePicker.pickImage(
         source: source == _PickSource.camera ? ImageSource.camera : ImageSource.gallery,
-        imageQuality: 85,
         maxWidth: 2000,
-        requestFullMetadata: false,
       );
       if (image == null) return;
 
@@ -145,6 +145,12 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
       }
 
       setState(() => _pickedPhotoPath = image.path);
+    } on CameraUnavailableException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.message);
+    } on MediaPermissionDeniedException catch (e) {
+      if (!mounted) return;
+      showMediaPermissionSnackBar(context, e);
     } catch (_) {
       if (!mounted) return;
       showAppSnackBar(context, 'Não foi possível selecionar a foto.');

@@ -37,6 +37,8 @@
 	<string>Acesso ao microfone pode ser necessário ao gravar vídeos com a câmera.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Precisamos acessar sua galeria para selecionar fotos de perfil, documentos e imagens dos serviços.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Precisamos salvar fotos na sua galeria quando necessário.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

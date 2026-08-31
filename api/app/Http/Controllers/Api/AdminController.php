@@ -62,12 +62,16 @@ class AdminController extends Controller
     {
         $this->ensureAdmin();
 
-        if (! $user->isProfessional()) {
-            return response()->json(['message' => 'Usuário não é profissional'], 404);
+        if ($user->isAdmin()) {
+            return response()->json(['message' => 'Usuário não encontrado'], 404);
         }
 
-        $user->load('professionalProfile')
-            ->loadCount(['serviceRequests', 'professionalServices', 'assignedServices']);
+        if ($user->isProfessional()) {
+            $user->load('professionalProfile')
+                ->loadCount(['serviceRequests', 'professionalServices', 'assignedServices']);
+        } else {
+            $user->loadCount(['serviceRequests']);
+        }
 
         return response()->json($user);
     }
@@ -76,8 +80,8 @@ class AdminController extends Controller
     {
         $this->ensureAdmin();
 
-        if (! $user->isProfessional()) {
-            return response()->json(['message' => 'Apenas profissionais precisam de aprovação'], 422);
+        if ($user->isAdmin()) {
+            return response()->json(['message' => 'Não é possível alterar status de administrador'], 422);
         }
 
         if ($request->filled('status') && is_string($request->input('status'))) {
@@ -94,19 +98,28 @@ class AdminController extends Controller
             $status = UserStatus::from(strtoupper((string) $status));
         }
 
+        if ($user->isClient() && ! in_array($status, [UserStatus::Ativo, UserStatus::Inativo], true)) {
+            return response()->json(['message' => 'Status inválido para cliente'], 422);
+        }
+
         $user->update(['status' => $status]);
 
         $message = match ($status) {
-            UserStatus::Ativo => 'Profissional aprovado',
-            UserStatus::Inativo => 'Profissional inativado',
+            UserStatus::Ativo => $user->isProfessional() ? 'Profissional aprovado' : 'Cliente reativado',
+            UserStatus::Inativo => $user->isProfessional() ? 'Profissional inativado' : 'Cliente inativado',
             UserStatus::Pendente => 'Profissional marcado como pendente',
             UserStatus::Excluido => 'Profissional excluído',
             UserStatus::Rejeitado => 'Profissional rejeitado',
         };
 
+        $user = $user->fresh();
+        if ($user->isProfessional()) {
+            $user->load('professionalProfile');
+        }
+
         return response()->json([
             'message' => $message,
-            'user' => $user->fresh()->load('professionalProfile'),
+            'user' => $user,
         ]);
     }
 

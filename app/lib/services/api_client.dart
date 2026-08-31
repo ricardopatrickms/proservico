@@ -232,7 +232,7 @@ class ApiClient {
       if (decoded is Map<String, dynamic>) return decoded;
       return {'data': decoded};
     }
-    _handleUnauthorizedIfNeeded(response, auth: auth, path: path);
+    _handleUnauthorizedIfNeeded(response, auth: auth, path: path, decoded: decoded);
     final error = _error(response, decoded);
     _log('erro HTTP ${response.statusCode} em $path: ${error.displayMessage}');
     throw error;
@@ -251,7 +251,7 @@ class ApiClient {
       }
       return const [];
     }
-    _handleUnauthorizedIfNeeded(response, auth: auth, path: path);
+    _handleUnauthorizedIfNeeded(response, auth: auth, path: path, decoded: decoded);
     throw _error(response, decoded);
   }
 
@@ -259,6 +259,7 @@ class ApiClient {
     http.Response response, {
     required bool auth,
     required String path,
+    dynamic decoded,
   }) {
     if (response.statusCode != 401 || !auth) return;
 
@@ -270,7 +271,14 @@ class ApiClient {
       return;
     }
 
-    // Fire-and-forget: limpa sessão e volta ao welcome.
+    Map<String, dynamic> data = {};
+    if (decoded is Map<String, dynamic>) data = decoded;
+    final exception = ApiException(
+      data['message']?.toString() ?? 'Unauthenticated.',
+      statusCode: 401,
+    );
+    if (!exception.isSessionExpired) return;
+
     SessionExpiry.handleUnauthorized();
   }
 

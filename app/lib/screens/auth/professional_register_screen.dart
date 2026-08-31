@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../services/api_exception.dart';
+import '../../services/app_image_picker.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/bank_picker.dart';
@@ -236,12 +237,13 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
                     ),
                   ),
                 ),
-                ListTile(
-                  leading: const Icon(Icons.photo_camera_outlined, color: AppColors.primary),
-                  title: const Text('Câmera'),
-                  subtitle: const Text('Tirar uma foto agora'),
-                  onTap: () => Navigator.pop(context, _PickSource.camera),
-                ),
+                if (AppImagePicker.isCameraAvailable)
+                  ListTile(
+                    leading: const Icon(Icons.photo_camera_outlined, color: AppColors.primary),
+                    title: const Text('Câmera'),
+                    subtitle: const Text('Tirar uma foto agora'),
+                    onTap: () => Navigator.pop(context, _PickSource.camera),
+                  ),
                 ListTile(
                   leading: const Icon(Icons.photo_outlined, color: AppColors.primary),
                   title: const Text('Galeria'),
@@ -290,13 +292,11 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
 
     try {
       if (source == _PickSource.camera || source == _PickSource.photo) {
-        final image = await ImagePicker().pickImage(
+        final image = await AppImagePicker.pickImage(
           source: source == _PickSource.camera
               ? ImageSource.camera
               : ImageSource.gallery,
-          imageQuality: 85,
           maxWidth: 2000,
-          requestFullMetadata: false,
         );
         if (image == null) return;
 
@@ -357,6 +357,12 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
       }
 
       _assignPicked(field, _PickedDoc(name: file.name, path: path));
+    } on CameraUnavailableException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.message);
+    } on MediaPermissionDeniedException catch (e) {
+      if (!mounted) return;
+      showMediaPermissionSnackBar(context, e);
     } on MissingPluginException {
       if (!mounted) return;
       showAppSnackBar(
@@ -365,17 +371,7 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
       );
     } catch (e) {
       if (!mounted) return;
-      final msg = e.toString();
-      if (msg.contains('camera_access_denied') || msg.contains('CameraAccessDenied')) {
-        showAppSnackBar(context, 'Permissão da câmera negada. Ative nas configurações.');
-      } else if (msg.contains('channel-error') || msg.contains('MissingPluginException')) {
-        showAppSnackBar(
-          context,
-          'Reinicie o app (pare e rode flutter run) para habilitar a câmera.',
-        );
-      } else {
-        showAppSnackBar(context, 'Não foi possível abrir a câmera. Tente Galeria ou Arquivo.');
-      }
+      showAppSnackBar(context, 'Não foi possível selecionar o arquivo. Tente novamente.');
     }
   }
 
