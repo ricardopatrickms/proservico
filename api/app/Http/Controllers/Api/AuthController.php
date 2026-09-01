@@ -219,22 +219,13 @@ class AuthController extends Controller
         /** @var User $user */
         $user = Auth::guard('api')->user();
 
-        if ($user->status === UserStatus::Rejeitado) {
+        if ($user->isBlockedFromAccess()) {
             Auth::guard('api')->logout();
 
-            return response()->json(['message' => 'Cadastro profissional rejeitado'], 403);
-        }
-
-        if ($user->status === UserStatus::Excluido) {
-            Auth::guard('api')->logout();
-
-            return response()->json(['message' => 'Cadastro excluído'], 403);
-        }
-
-        if ($user->status === UserStatus::Inativo) {
-            Auth::guard('api')->logout();
-
-            return response()->json(['message' => 'Conta inativa'], 403);
+            return response()->json([
+                'message' => $user->accessDeniedMessage(),
+                'error' => 'account_inactive',
+            ], 403);
         }
 
         return $this->respondWithToken($token, $user->load('professionalProfile'));

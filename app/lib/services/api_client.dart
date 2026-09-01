@@ -232,7 +232,7 @@ class ApiClient {
       if (decoded is Map<String, dynamic>) return decoded;
       return {'data': decoded};
     }
-    _handleUnauthorizedIfNeeded(response, auth: auth, path: path, decoded: decoded);
+    _handleAuthFailureIfNeeded(response, auth: auth, path: path, decoded: decoded);
     final error = _error(response, decoded);
     _log('erro HTTP ${response.statusCode} em $path: ${error.displayMessage}');
     throw error;
@@ -251,23 +251,24 @@ class ApiClient {
       }
       return const [];
     }
-    _handleUnauthorizedIfNeeded(response, auth: auth, path: path, decoded: decoded);
+    _handleAuthFailureIfNeeded(response, auth: auth, path: path, decoded: decoded);
     throw _error(response, decoded);
   }
 
-  void _handleUnauthorizedIfNeeded(
+  void _handleAuthFailureIfNeeded(
     http.Response response, {
     required bool auth,
     required String path,
     dynamic decoded,
   }) {
-    if (response.statusCode != 401 || !auth) return;
+    if (!auth) return;
 
     final normalized = path.toLowerCase();
     if (normalized.contains('/auth/login') ||
         normalized.contains('/auth/register') ||
         normalized.contains('/auth/forgot-password') ||
-        normalized.contains('/auth/reset-password')) {
+        normalized.contains('/auth/reset-password') ||
+        normalized.contains('/auth/check-account')) {
       return;
     }
 
@@ -275,8 +276,18 @@ class ApiClient {
     if (decoded is Map<String, dynamic>) data = decoded;
     final exception = ApiException(
       data['message']?.toString() ?? 'Unauthenticated.',
-      statusCode: 401,
+      statusCode: response.statusCode,
+      code: data['error']?.toString(),
     );
+
+    if (exception.isAccountInactive) {
+      SessionExpiry.handleUnauthorized(
+        message: exception.displayMessage,
+      );
+      return;
+    }
+
+    if (response.statusCode != 401) return;
     if (!exception.isSessionExpired) return;
 
     SessionExpiry.handleUnauthorized();
@@ -296,6 +307,7 @@ class ApiClient {
           ? rawMessage
           : 'Erro na requisição (${response.statusCode})',
       statusCode: response.statusCode,
+      code: data['error']?.toString(),
       errors: data['errors'] is Map<String, dynamic>
           ? data['errors'] as Map<String, dynamic>
           : null,

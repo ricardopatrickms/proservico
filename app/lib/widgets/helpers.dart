@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../services/app_image_picker.dart';
+import '../services/session_expiry.dart';
 
 String formatDate(DateTime date) {
   return DateFormat("dd/MM/yyyy 'às' HH:mm", 'pt_BR').format(date);
@@ -13,8 +14,8 @@ String formatCurrency(double value) {
 }
 
 void showAppSnackBar(BuildContext context, String message) {
-  // Aviso de sessão é exibido após o redirect global.
-  if (message == 'Sessão expirada. Faça login novamente.') return;
+  if (SessionExpiry.isHandling) return;
+  if (message == SessionExpiry.sessionExpiredMessage) return;
 
   final text = message.trim().isEmpty
       ? 'Não foi possível concluir. Tente novamente.'

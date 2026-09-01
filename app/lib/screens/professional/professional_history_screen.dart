@@ -100,12 +100,6 @@ class _ProfessionalHistoryScreenState extends State<ProfessionalHistoryScreen> {
     }).toList();
   }
 
-  double get _totalBilled {
-    return _requests
-        .where((r) => r.status == ServiceStatus.completed)
-        .fold<double>(0, (sum, r) => sum + _serviceValue(r));
-  }
-
   double _serviceValue(ServiceRequest request) {
     return request.budget ??
         request.budgetMax ??
@@ -304,49 +298,6 @@ class _ProfessionalHistoryScreenState extends State<ProfessionalHistoryScreen> {
                   ),
                 ),
               ),
-            const SizedBox(height: 24),
-            const Text(
-              'Estatísticas',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _HistoryStat(
-                      value: '${_requests.length}',
-                      label: 'Total de Serviços',
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  Expanded(
-                    child: _HistoryStat(
-                      value: _formatMoney(_totalBilled),
-                      label: 'Total Faturado',
-                      color: AppColors.success,
-                    ),
-                  ),
-                  const Expanded(
-                    child: _HistoryStat(
-                      value: '—',
-                      label: 'Nota Média',
-                      color: Color(0xFFF59E0B),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),
@@ -559,40 +510,6 @@ class _ActionButton extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _HistoryStat extends StatelessWidget {
-  final String value;
-  final String label;
-  final Color color;
-
-  const _HistoryStat({
-    required this.value,
-    required this.label,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w800,
-            color: color,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-        ),
-      ],
     );
   }
 }

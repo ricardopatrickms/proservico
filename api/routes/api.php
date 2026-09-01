@@ -18,7 +18,7 @@ Route::prefix('auth')->group(function () {
     Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('reset-password', [AuthController::class, 'resetPassword']);
 
-    Route::middleware('auth:api')->group(function () {
+    Route::middleware(['auth:api', 'account.active'])->group(function () {
         Route::get('me', [AuthController::class, 'me']);
         Route::put('profile', [AuthController::class, 'updateProfile']);
         Route::post('logout', [AuthController::class, 'logout']);
@@ -26,7 +26,7 @@ Route::prefix('auth')->group(function () {
     });
 });
 
-Route::middleware('auth:api')->group(function () {
+Route::middleware(['auth:api', 'account.active'])->group(function () {
     Route::get('service-requests', [ServiceRequestController::class, 'index']);
     Route::post('service-requests', [ServiceRequestController::class, 'store']);
     Route::get('service-requests/{serviceRequest}', [ServiceRequestController::class, 'show']);

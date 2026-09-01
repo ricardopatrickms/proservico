@@ -132,6 +132,25 @@ class User extends Authenticatable implements JWTSubject
         return $this->status === UserStatus::Pendente;
     }
 
+    public function isBlockedFromAccess(): bool
+    {
+        return in_array($this->status, [
+            UserStatus::Inativo,
+            UserStatus::Excluido,
+            UserStatus::Rejeitado,
+        ], true);
+    }
+
+    public function accessDeniedMessage(): string
+    {
+        return match ($this->status) {
+            UserStatus::Rejeitado => 'Cadastro profissional rejeitado',
+            UserStatus::Excluido => 'Cadastro excluído',
+            UserStatus::Inativo => 'Conta inativa',
+            default => 'Acesso não permitido',
+        };
+    }
+
     public static function normalizeCpf(?string $cpf): ?string
     {
         $digits = preg_replace('/\D+/', '', (string) $cpf);

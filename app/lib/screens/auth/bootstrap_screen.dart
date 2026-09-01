@@ -36,7 +36,7 @@ class _BootstrapScreenState extends State<BootstrapScreen> {
       final user = await AuthService.instance.fetchMe();
       _show(homeForUser(user));
     } on ApiException catch (e) {
-      if (e.statusCode == 401 || e.isSessionExpired) {
+      if (e.statusCode == 401 || e.isSessionExpired || e.isAccountInactive) {
         await SessionStore.instance.clear();
         _show(const WelcomeScreen());
         return;

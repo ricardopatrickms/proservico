@@ -1,9 +1,15 @@
 class ApiException implements Exception {
   final String message;
   final int? statusCode;
+  final String? code;
   final Map<String, dynamic>? errors;
 
-  const ApiException(this.message, {this.statusCode, this.errors});
+  const ApiException(
+    this.message, {
+    this.statusCode,
+    this.code,
+    this.errors,
+  });
 
   @override
   String toString() => message;
@@ -19,8 +25,21 @@ class ApiException implements Exception {
         lower.contains('authorization');
   }
 
+  /// Conta inativada/excluída/rejeitada enquanto a sessão ainda existia.
+  bool get isAccountInactive {
+    if (code == 'account_inactive') return true;
+    if (statusCode != 403) return false;
+    final lower = message.toLowerCase();
+    return lower.contains('conta inativa') ||
+        lower.contains('cadastro excluído') ||
+        lower.contains('cadastro profissional rejeitado');
+  }
+
   /// Primeira mensagem de validação do Laravel, se houver.
   String get displayMessage {
+    if (isAccountInactive) {
+      return message.trim().isNotEmpty ? message : 'Conta inativa';
+    }
     if (isSessionExpired) {
       return 'Sessão expirada. Faça login novamente.';
     }

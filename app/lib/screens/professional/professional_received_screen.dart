@@ -26,6 +26,7 @@ class _ProfessionalReceivedScreenState
   final _searchController = TextEditingController();
 
   List<ServiceRequest> _requests = [];
+  final Set<String> _sentProposalIds = {};
   bool _loading = true;
   String? _error;
 
@@ -41,20 +42,40 @@ class _ProfessionalReceivedScreenState
     super.dispose();
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  bool _hasSentProposal(ServiceRequest request) {
+    final userId = SessionStore.instance.currentUser?.id;
+    if (userId != null &&
+        request.proposals.any((p) => p.professionalId == userId)) {
+      return true;
+    }
+    return _sentProposalIds.contains(request.id);
+  }
+
+  Future<void> _load({bool showSpinner = true}) async {
+    if (showSpinner) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final all = await _service.list();
       if (!mounted) return;
+      final pending = all
+          .where((r) => r.status == ServiceStatus.pending)
+          .toList();
+      final userId = SessionStore.instance.currentUser?.id;
       setState(() {
-        // Pedidos disponíveis: pendentes (ainda sem profissional).
-        _requests = all
-            .where((r) => r.status == ServiceStatus.pending)
-            .toList();
+        _requests = pending;
+        if (userId != null) {
+          for (final request in pending) {
+            if (request.proposals.any((p) => p.professionalId == userId)) {
+              _sentProposalIds.add(request.id);
+            }
+          }
+        }
         _loading = false;
+        _error = null;
       });
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -199,6 +220,7 @@ class _ProfessionalReceivedScreenState
                       request.createdAt ?? request.scheduledAt,
                     ),
                     scheduledLabel: _shortDate(request.scheduledAt),
+                    proposalSent: _hasSentProposal(request),
                     onDetails: () => showProfessionalRequestDetail(context, request),
                     onPropose: () => _openProposeSheet(request),
                   ),
@@ -211,6 +233,8 @@ class _ProfessionalReceivedScreenState
   }
 
   Future<void> _openProposeSheet(ServiceRequest request) async {
+    if (_hasSentProposal(request)) return;
+
     final user = SessionStore.instance.currentUser;
     if (user == null || user.type != AccountType.professional) {
       showAppSnackBar(
@@ -235,11 +259,12 @@ class _ProfessionalReceivedScreenState
         message: result.message,
       );
       if (!mounted) return;
+      setState(() => _sentProposalIds.add(request.id));
       showAppSnackBar(
         context,
         'Proposta de ${formatCurrency(result.value)} enviada.',
       );
-      await _load();
+      await _load(showSpinner: false);
     } on ApiException catch (e) {
       if (!mounted) return;
       showAppSnackBar(context, e.displayMessage);
@@ -377,6 +402,7 @@ class _ReceivedCard extends StatelessWidget {
   final ServiceRequest request;
   final String createdLabel;
   final String scheduledLabel;
+  final bool proposalSent;
   final VoidCallback onDetails;
   final VoidCallback onPropose;
 
@@ -384,6 +410,7 @@ class _ReceivedCard extends StatelessWidget {
     required this.request,
     required this.createdLabel,
     required this.scheduledLabel,
+    required this.proposalSent,
     required this.onDetails,
     required this.onPropose,
   });
@@ -496,21 +523,40 @@ class _ReceivedCard extends StatelessWidget {
             builder: (context, constraints) {
               final stack = constraints.maxWidth < 420;
               final propose = Material(
-                color: AppColors.navy,
+                color: proposalSent ? AppColors.success : AppColors.navy,
                 borderRadius: BorderRadius.circular(10),
                 child: InkWell(
-                  onTap: onPropose,
+                  onTap: proposalSent ? null : onPropose,
                   borderRadius: BorderRadius.circular(10),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     child: Center(
-                      child: Text(
-                        'Enviar Proposta',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (proposalSent) ...[
+                            const Icon(
+                              Icons.check_circle_outline,
+                              size: 18,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                          Text(
+                            proposalSent
+                                ? 'Proposta Enviada'
+                                : 'Enviar Proposta',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
