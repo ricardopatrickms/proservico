@@ -52,6 +52,8 @@ class ServiceRequestController extends Controller
             'city' => ['required', 'string', 'max:255'],
             'state' => ['required', 'string', 'max:2'],
             'cep' => ['required', 'string', 'max:12'],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'reference_point' => ['nullable', 'string', 'max:255'],
             'scheduled_at' => ['required', 'date'],
             'preferred_period' => ['required', Rule::in(['morning', 'afternoon', 'evening', 'business'])],

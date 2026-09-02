@@ -16,6 +16,8 @@ class ServiceRequest {
   final String? city;
   final String? state;
   final String? cep;
+  final double? latitude;
+  final double? longitude;
   final String? referencePoint;
   final DateTime scheduledAt;
   final PreferredPeriod? preferredPeriod;
@@ -47,6 +49,8 @@ class ServiceRequest {
     this.city,
     this.state,
     this.cep,
+    this.latitude,
+    this.longitude,
     this.referencePoint,
     required this.scheduledAt,
     this.preferredPeriod,
@@ -92,6 +96,8 @@ class ServiceRequest {
       city: json['city']?.toString(),
       state: json['state']?.toString(),
       cep: json['cep']?.toString(),
+      latitude: _toDouble(json['latitude']),
+      longitude: _toDouble(json['longitude']),
       referencePoint: json['reference_point']?.toString(),
       scheduledAt: DateTime.tryParse(json['scheduled_at']?.toString() ?? '') ??
           DateTime.now(),

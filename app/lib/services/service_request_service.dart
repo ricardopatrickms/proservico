@@ -9,6 +9,8 @@ class CreateServiceRequestInput {
   final String city;
   final String state;
   final String cep;
+  final double? latitude;
+  final double? longitude;
   final String? referencePoint;
   final DateTime preferredDate;
   final PreferredPeriod preferredPeriod;
@@ -30,6 +32,8 @@ class CreateServiceRequestInput {
     required this.city,
     required this.state,
     required this.cep,
+    this.latitude,
+    this.longitude,
     this.referencePoint,
     required this.preferredDate,
     required this.preferredPeriod,
@@ -83,6 +87,8 @@ class CreateServiceRequestInput {
       'city': city,
       'state': state,
       'cep': cep,
+      if (latitude != null) 'latitude': latitude!.toString(),
+      if (longitude != null) 'longitude': longitude!.toString(),
       if (referencePoint != null && referencePoint!.trim().isNotEmpty)
         'reference_point': referencePoint!.trim(),
       'scheduled_at': scheduledAt.toIso8601String(),

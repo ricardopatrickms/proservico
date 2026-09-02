@@ -3,13 +3,18 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../data/client_requests_store.dart';
 import '../../models/service_request.dart';
 import '../../services/app_image_picker.dart';
+import '../../services/app_location_service.dart';
 import '../../services/api_exception.dart';
+import '../../services/cep_service.dart';
 import '../../services/service_request_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/cep_input_formatter.dart';
+import '../../widgets/currency_input_formatter.dart';
 import '../../widgets/helpers.dart';
 import '../../widgets/service_category_picker.dart';
 import '../professional/professional_request_detail_sheet.dart';
@@ -61,8 +66,13 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
   GenderPreference _genderPreference = GenderPreference.any;
   final List<XFile> _photos = [];
   bool _loading = false;
+  bool _locating = false;
+  bool _lookingUpCep = false;
   bool _attempted = false;
   Map<String, String> _apiFieldErrors = {};
+  double? _latitude;
+  double? _longitude;
+  String? _lastLookedUpCep;
 
   static const _materialsOptions = <(String, String)>[
     ('client', 'Cliente fornece os materiais'),
@@ -133,11 +143,7 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
     return _apiError('budget') ?? _apiError('budget_min') ?? _apiError('budget_max');
   }
 
-  double? _parseBudget(String raw) {
-    final trimmed = raw.trim();
-    if (trimmed.isEmpty) return null;
-    return double.tryParse(trimmed.replaceAll(',', '.'));
-  }
+  double? _parseBudget(String raw) => CurrencyInputFormatter.parse(raw);
 
   Map<String, String> _mapApiErrors(ApiException e) {
     final errors = e.errors;
@@ -210,7 +216,9 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
     if (_addressController.text.trim().isEmpty) missing.add('Endereço');
     if (_cityController.text.trim().isEmpty) missing.add('Cidade');
     if (_stateController.text.trim().length != 2) missing.add('Estado (UF)');
-    if (_cepController.text.trim().length < 8) missing.add('CEP');
+    if (CepInputFormatter.digitsOnly(_cepController.text).length != 8) {
+      missing.add('CEP');
+    }
     if (!dateOk) missing.add('Data preferida');
     if (!periodOk) missing.add('Período preferido');
     if (!budgetOk) missing.add('Orçamento');
@@ -289,7 +297,8 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
         _cityKey,
       if (_stateController.text.trim().length != 2 || _apiError('state') != null)
         _stateKey,
-      if (_cepController.text.trim().length < 8 || _apiError('cep') != null)
+      if (CepInputFormatter.digitsOnly(_cepController.text).length != 8 ||
+          _apiError('cep') != null)
         _cepKey,
       if (!dateOk || _apiError('scheduled_at') != null) _dateKey,
       if (!periodOk || _apiError('preferred_period') != null) _periodKey,
@@ -473,6 +482,8 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
           city: _cityController.text.trim(),
           state: _stateController.text.trim().toUpperCase(),
           cep: _cepController.text.trim(),
+          latitude: _latitude,
+          longitude: _longitude,
           referencePoint: _referenceController.text.trim().isEmpty
               ? null
               : _referenceController.text.trim(),
@@ -557,7 +568,146 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
       _photos.clear();
       _attempted = false;
       _apiFieldErrors = {};
+      _latitude = null;
+      _longitude = null;
+      _locating = false;
+      _lookingUpCep = false;
+      _lastLookedUpCep = null;
     });
+  }
+
+  Future<void> _onCepChanged(String value) async {
+    _clearApi('cep');
+    final digits = CepInputFormatter.digitsOnly(value);
+    if (digits.length != 8) {
+      setState(() {});
+      return;
+    }
+    if (_lookingUpCep || digits == _lastLookedUpCep) {
+      setState(() {});
+      return;
+    }
+    await _lookupCep(digits);
+  }
+
+  Future<void> _lookupCep([String? raw]) async {
+    final digits = CepInputFormatter.digitsOnly(raw ?? _cepController.text);
+    if (digits.length != 8 || _lookingUpCep) return;
+
+    setState(() => _lookingUpCep = true);
+    try {
+      final address = await CepService.instance.lookup(digits);
+      if (!mounted) return;
+
+      setState(() {
+        _lastLookedUpCep = digits;
+        _cepController.value = TextEditingValue(
+          text: address.cep,
+          selection: TextSelection.collapsed(offset: address.cep.length),
+        );
+        if (address.addressLine.isNotEmpty) {
+          _addressController.text = address.addressLine;
+          _clearApi('address');
+          _clearApi('location');
+        }
+        if (address.city.isNotEmpty) {
+          _cityController.text = address.city;
+          _clearApi('city');
+        }
+        if (address.state.isNotEmpty) {
+          _stateController.text = address.state;
+          _clearApi('state');
+        }
+        _clearApi('cep');
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      _lastLookedUpCep = digits;
+      showAppSnackBar(context, e.displayMessage);
+    } catch (_) {
+      if (!mounted) return;
+      showAppSnackBar(context, 'Não foi possível consultar o CEP.');
+    } finally {
+      if (mounted) setState(() => _lookingUpCep = false);
+    }
+  }
+
+  Future<void> _useCurrentLocation() async {
+    if (_locating) return;
+    setState(() => _locating = true);
+    try {
+      final resolved = await AppLocationService.resolveCurrentAddress();
+      if (!mounted) return;
+
+      final filledSomething = resolved.address.isNotEmpty ||
+          resolved.city.isNotEmpty ||
+          resolved.cep.isNotEmpty;
+
+      setState(() {
+        _latitude = resolved.latitude;
+        _longitude = resolved.longitude;
+        if (resolved.address.isNotEmpty) {
+          _addressController.text = resolved.address;
+          _clearApi('address');
+          _clearApi('location');
+        }
+        if (resolved.city.isNotEmpty) {
+          _cityController.text = resolved.city;
+          _clearApi('city');
+        }
+        if (resolved.state.isNotEmpty) {
+          _stateController.text = resolved.state;
+          _clearApi('state');
+        }
+        if (resolved.cep.isNotEmpty) {
+          _cepController.text = resolved.cep;
+          _lastLookedUpCep = CepInputFormatter.digitsOnly(resolved.cep);
+          _clearApi('cep');
+        }
+      });
+
+      showAppSnackBar(
+        context,
+        filledSomething
+            ? 'Localização preenchida. Confira os dados.'
+            : 'GPS obtido. Complete o endereço ou busque pelo CEP.',
+      );
+    } on LocationPermissionException catch (e) {
+      if (!mounted) return;
+      if (e.permanentlyDenied) {
+        final messenger = ScaffoldMessenger.of(context);
+        messenger.clearSnackBars();
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(e.message),
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'Ajustes',
+              onPressed: openAppSettings,
+            ),
+          ),
+        );
+      } else if (e.serviceDisabled) {
+        showAppSnackBar(context, e.message);
+      } else {
+        showAppSnackBar(context, e.message);
+      }
+    } on MissingPluginException {
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        'Reinicie o app (pare e rode flutter run) para habilitar a localização.',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        'Não foi possível obter a localização. Tente novamente.',
+      );
+      debugPrint('[Location] erro: $e');
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
   }
 
   @override
@@ -809,6 +959,76 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
               color: const Color(0xFF16A34A),
               icon: Icons.place_outlined,
               children: [
+                OutlinedButton.icon(
+                  onPressed: _locating ? null : _useCurrentLocation,
+                  icon: _locating
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.my_location),
+                  label: Text(
+                    _locating
+                        ? 'Obtendo localização...'
+                        : 'Usar minha localização',
+                  ),
+                ),
+                if (_latitude != null && _longitude != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'GPS: ${_latitude!.toStringAsFixed(5)}, ${_longitude!.toStringAsFixed(5)}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                KeyedSubtree(
+                  key: _cepKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _label('CEP'),
+                      TextFormField(
+                        autovalidateMode: _fieldValidateMode,
+                        controller: _cepController,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          CepInputFormatter(),
+                        ],
+                        textInputAction: TextInputAction.next,
+                        decoration: InputDecoration(
+                          hintText: '00000-000',
+                          suffixIcon: _lookingUpCep
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ),
+                                )
+                              : IconButton(
+                                  tooltip: 'Buscar CEP',
+                                  onPressed: _lookingUpCep ? null : () => _lookupCep(),
+                                  icon: const Icon(Icons.search),
+                                ),
+                        ),
+                        onChanged: _onCepChanged,
+                        validator: (v) {
+                          if (v == null ||
+                              CepInputFormatter.digitsOnly(v).length != 8) {
+                            return 'Informe um CEP válido';
+                          }
+                          return _apiError('cep');
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
                 KeyedSubtree(
                   key: _addressKey,
                   child: Column(
@@ -821,7 +1041,10 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
                         decoration: const InputDecoration(
                           hintText: 'Rua, número e bairro',
                         ),
-                        onChanged: (_) => _clearApi('address'),
+                        onChanged: (_) {
+                          _clearApi('address');
+                          _clearApi('location');
+                        },
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) {
                             return 'Informe o endereço';
@@ -855,71 +1078,37 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: KeyedSubtree(
-                        key: _stateKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _label('Estado'),
-                            TextFormField(
-                              autovalidateMode: _fieldValidateMode,
-                              controller: _stateController,
-                              textCapitalization: TextCapitalization.characters,
-                              maxLength: 2,
-                              inputFormatters: [
-                                FilteringTextInputFormatter.allow(
-                                  RegExp(r'[a-zA-Z]'),
-                                ),
-                                LengthLimitingTextInputFormatter(2),
-                              ],
-                              decoration: const InputDecoration(
-                                hintText: 'UF',
-                                counterText: '',
-                              ),
-                              onChanged: (_) => _clearApi('state'),
-                              validator: (v) {
-                                if (v == null || v.trim().length != 2) {
-                                  return 'Informe a UF';
-                                }
-                                return _apiError('state');
-                              },
-                            ),
-                          ],
+                KeyedSubtree(
+                  key: _stateKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _label('Estado'),
+                      TextFormField(
+                        autovalidateMode: _fieldValidateMode,
+                        controller: _stateController,
+                        textCapitalization: TextCapitalization.characters,
+                        maxLength: 2,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                            RegExp(r'[a-zA-Z]'),
+                          ),
+                          LengthLimitingTextInputFormatter(2),
+                        ],
+                        decoration: const InputDecoration(
+                          hintText: 'UF',
+                          counterText: '',
                         ),
+                        onChanged: (_) => _clearApi('state'),
+                        validator: (v) {
+                          if (v == null || v.trim().length != 2) {
+                            return 'Informe a UF';
+                          }
+                          return _apiError('state');
+                        },
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 3,
-                      child: KeyedSubtree(
-                        key: _cepKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _label('CEP'),
-                            TextFormField(
-                              autovalidateMode: _fieldValidateMode,
-                              controller: _cepController,
-                              keyboardType: TextInputType.number,
-                              decoration:
-                                  const InputDecoration(hintText: '00000-000'),
-                              onChanged: (_) => _clearApi('cep'),
-                              validator: (v) {
-                                if (v == null || v.trim().length < 8) {
-                                  return 'Informe um CEP válido';
-                                }
-                                return _apiError('cep');
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 14),
                 _label('Ponto de Referência'),
@@ -1064,10 +1253,10 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
                               TextFormField(
                                 controller: _budgetMinController,
                                 autovalidateMode: _fieldValidateMode,
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                  decimal: true,
-                                ),
+                                keyboardType: TextInputType.number,
+                                inputFormatters: const [
+                                  CurrencyInputFormatter(),
+                                ],
                                 decoration: const InputDecoration(hintText: '0,00'),
                                 onChanged: (_) {
                                   _clearApi('budget_min');
@@ -1088,10 +1277,10 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
                               TextFormField(
                                 controller: _budgetMaxController,
                                 autovalidateMode: _fieldValidateMode,
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                  decimal: true,
-                                ),
+                                keyboardType: TextInputType.number,
+                                inputFormatters: const [
+                                  CurrencyInputFormatter(),
+                                ],
                                 decoration: const InputDecoration(hintText: '0,00'),
                                 onChanged: (_) {
                                   _clearApi('budget_min');
