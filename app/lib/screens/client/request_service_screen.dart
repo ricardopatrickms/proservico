@@ -25,6 +25,20 @@ class RequestServiceScreen extends StatefulWidget {
 
 class _RequestServiceScreenState extends State<RequestServiceScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _scrollController = ScrollController();
+
+  final _categoryKey = GlobalKey();
+  final _titleKey = GlobalKey();
+  final _descriptionKey = GlobalKey();
+  final _photosKey = GlobalKey();
+  final _addressKey = GlobalKey();
+  final _cityKey = GlobalKey();
+  final _stateKey = GlobalKey();
+  final _cepKey = GlobalKey();
+  final _dateKey = GlobalKey();
+  final _periodKey = GlobalKey();
+  final _budgetKey = GlobalKey();
+  final _materialsKey = GlobalKey();
 
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -47,6 +61,8 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
   GenderPreference _genderPreference = GenderPreference.any;
   final List<XFile> _photos = [];
   bool _loading = false;
+  bool _attempted = false;
+  Map<String, String> _apiFieldErrors = {};
 
   static const _materialsOptions = <(String, String)>[
     ('client', 'Cliente fornece os materiais'),
@@ -68,7 +84,233 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
     _budgetMinController.dispose();
     _budgetMaxController.dispose();
     _materialsDetailsController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _clearApi(String field) {
+    if (!_apiFieldErrors.containsKey(field)) return;
+    setState(() => _apiFieldErrors.remove(field));
+  }
+
+  AutovalidateMode get _fieldValidateMode =>
+      _attempted ? AutovalidateMode.always : AutovalidateMode.disabled;
+
+  String? _apiError(String field) => _apiFieldErrors[field];
+
+  void _notifyMissingFields(String message) {
+    final bottom = MediaQuery.paddingOf(context).bottom + 88;
+    showAppSnackBar(context, message, bottomMargin: bottom);
+  }
+
+  String? get _photosError {
+    if (_attempted && _photos.length < 2) {
+      return 'Envie no mínimo 2 fotos para continuar';
+    }
+    return _apiError('photos');
+  }
+
+  String? get _dateError {
+    if (_attempted && _preferredDate == null) {
+      return 'Selecione a data preferida';
+    }
+    return _apiError('scheduled_at');
+  }
+
+  String? get _periodError {
+    if (_attempted && _period == null) {
+      return 'Selecione o período preferido';
+    }
+    return _apiError('preferred_period');
+  }
+
+  String? get _budgetRangeError {
+    final min = _parseBudget(_budgetMinController.text);
+    final max = _parseBudget(_budgetMaxController.text);
+    if (min != null && max != null && min > max) {
+      return 'O valor mínimo não pode ser maior que o máximo';
+    }
+    return _apiError('budget') ?? _apiError('budget_min') ?? _apiError('budget_max');
+  }
+
+  double? _parseBudget(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return null;
+    return double.tryParse(trimmed.replaceAll(',', '.'));
+  }
+
+  Map<String, String> _mapApiErrors(ApiException e) {
+    final errors = e.errors;
+    if (errors == null || errors.isEmpty) return {};
+    final out = <String, String>{};
+    for (final entry in errors.entries) {
+      final key = entry.key.split('.').first;
+      if (out.containsKey(key)) continue;
+      final raw = entry.value is List && (entry.value as List).isNotEmpty
+          ? (entry.value as List).first.toString()
+          : entry.value.toString();
+      out[key] = _friendlyFieldError(key, raw);
+    }
+    return out;
+  }
+
+  String _friendlyFieldError(String field, String raw) {
+    const byField = {
+      'title': 'Informe o título',
+      'category': 'Selecione a categoria',
+      'description': 'Informe a descrição',
+      'location': 'Informe o endereço completo',
+      'address': 'Informe o endereço',
+      'city': 'Informe a cidade',
+      'state': 'Informe a UF (2 letras)',
+      'cep': 'Informe um CEP válido',
+      'scheduled_at': 'Selecione a data preferida',
+      'preferred_period': 'Selecione o período preferido',
+      'materials_responsible': 'Selecione quem será responsável pelos materiais',
+      'photos': 'Envie no mínimo 2 fotos (JPG, PNG ou WEBP, máx. 5 MB)',
+      'budget': 'Informe um orçamento válido',
+      'budget_min': 'Informe um valor mínimo válido',
+      'budget_max': 'Informe um valor máximo válido',
+    };
+    final lower = raw.toLowerCase();
+    if (field == 'photos') {
+      if (lower.contains('mimes') || lower.contains('image')) {
+        return 'Use fotos em JPG, PNG ou WEBP';
+      }
+      if (lower.contains('max.file') || lower.contains('max')) {
+        return 'Cada foto deve ter no máximo 5 MB';
+      }
+      if (lower.contains('min')) {
+        return 'Envie no mínimo 2 fotos para continuar';
+      }
+    }
+    if (raw.startsWith('validation.required') || raw == 'validation.required') {
+      return byField[field] ?? 'Este campo é obrigatório';
+    }
+    if (raw.startsWith('validation.')) {
+      return byField[field] ?? 'Verifique este campo';
+    }
+    return raw.trim().isEmpty ? (byField[field] ?? 'Verifique este campo') : raw;
+  }
+
+  List<String> _missingFieldLabels({
+    required bool photosOk,
+    required bool dateOk,
+    required bool periodOk,
+    required bool budgetOk,
+    required bool formOk,
+  }) {
+    final missing = <String>[];
+    if (_category == null || _category!.trim().isEmpty) {
+      missing.add('Categoria');
+    }
+    if (_titleController.text.trim().isEmpty) missing.add('Título');
+    if (_descriptionController.text.trim().isEmpty) missing.add('Descrição');
+    if (!photosOk) missing.add('Fotos (mínimo 2)');
+    if (_addressController.text.trim().isEmpty) missing.add('Endereço');
+    if (_cityController.text.trim().isEmpty) missing.add('Cidade');
+    if (_stateController.text.trim().length != 2) missing.add('Estado (UF)');
+    if (_cepController.text.trim().length < 8) missing.add('CEP');
+    if (!dateOk) missing.add('Data preferida');
+    if (!periodOk) missing.add('Período preferido');
+    if (!budgetOk) missing.add('Orçamento');
+    if (_materialsResponsible == null) missing.add('Materiais');
+    if (missing.isEmpty && !formOk) missing.add('Categoria');
+    return missing;
+  }
+
+  String _missingFieldsMessage(List<String> labels) {
+    if (labels.isEmpty) {
+      return 'Preencha os campos destacados em vermelho.';
+    }
+    if (labels.length == 1) return 'Preencha: ${labels.first}.';
+    final shown = labels.take(3).join(', ');
+    final extra = labels.length > 3 ? '…' : '';
+    return 'Preencha os campos destacados: $shown$extra.';
+  }
+
+  Future<bool> _scrollToKey(GlobalKey key) async {
+    final ctx = key.currentContext;
+    if (ctx == null) return false;
+    await Scrollable.ensureVisible(
+      ctx,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+      alignment: 0.12,
+      alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
+    );
+    return true;
+  }
+
+  void _scheduleScrollToFirstError({
+    required bool photosOk,
+    required bool dateOk,
+    required bool periodOk,
+    required bool budgetOk,
+    bool formOk = true,
+  }) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _scrollToFirstError(
+          photosOk: photosOk,
+          dateOk: dateOk,
+          periodOk: periodOk,
+          budgetOk: budgetOk,
+          formOk: formOk,
+        );
+      });
+    });
+  }
+
+  Future<void> _scrollToFirstError({
+    required bool photosOk,
+    required bool dateOk,
+    required bool periodOk,
+    required bool budgetOk,
+    bool formOk = true,
+  }) async {
+    final targets = <GlobalKey>[
+      if (_category == null ||
+          _category!.trim().isEmpty ||
+          _apiError('category') != null)
+        _categoryKey,
+      if (_titleController.text.trim().isEmpty || _apiError('title') != null)
+        _titleKey,
+      if (_descriptionController.text.trim().isEmpty ||
+          _apiError('description') != null)
+        _descriptionKey,
+      if (!photosOk || _apiError('photos') != null) _photosKey,
+      if (_addressController.text.trim().isEmpty ||
+          _apiError('address') != null ||
+          _apiError('location') != null)
+        _addressKey,
+      if (_cityController.text.trim().isEmpty || _apiError('city') != null)
+        _cityKey,
+      if (_stateController.text.trim().length != 2 || _apiError('state') != null)
+        _stateKey,
+      if (_cepController.text.trim().length < 8 || _apiError('cep') != null)
+        _cepKey,
+      if (!dateOk || _apiError('scheduled_at') != null) _dateKey,
+      if (!periodOk || _apiError('preferred_period') != null) _periodKey,
+      if (!budgetOk ||
+          _apiError('budget') != null ||
+          _apiError('budget_min') != null ||
+          _apiError('budget_max') != null)
+        _budgetKey,
+      if (_materialsResponsible == null ||
+          _apiError('materials_responsible') != null)
+        _materialsKey,
+    ];
+
+    if (!formOk && targets.isEmpty) {
+      targets.add(_categoryKey);
+    }
+
+    for (final key in targets) {
+      if (await _scrollToKey(key)) return;
+    }
+
   }
 
   Future<void> _pickDate() async {
@@ -80,7 +322,10 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
       locale: const Locale('pt', 'BR'),
     );
     if (date == null || !mounted) return;
-    setState(() => _preferredDate = date);
+    setState(() {
+      _preferredDate = date;
+      _apiFieldErrors.remove('scheduled_at');
+    });
   }
 
   Future<ImageSource?> _askPhotoSource() {
@@ -155,7 +400,10 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
         return;
       }
 
-      setState(() => _photos.add(image));
+      setState(() {
+        _photos.add(image);
+        _apiFieldErrors.remove('photos');
+      });
     } on CameraUnavailableException catch (e) {
       if (!mounted) return;
       showAppSnackBar(context, e.message);
@@ -175,31 +423,42 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    if (_photos.length < 2) {
-      showAppSnackBar(context, 'Você precisa enviar no mínimo 2 fotos para continuar');
-      return;
-    }
-    if (_preferredDate == null) {
-      showAppSnackBar(context, 'Selecione a data preferida');
-      return;
-    }
-    if (_period == null) {
-      showAppSnackBar(context, 'Selecione o período preferido');
-      return;
-    }
     if (_loading) return;
 
-    final budgetMin = _budgetMinController.text.trim().isEmpty
-        ? null
-        : double.tryParse(_budgetMinController.text.replaceAll(',', '.'));
-    final budgetMax = _budgetMaxController.text.trim().isEmpty
-        ? null
-        : double.tryParse(_budgetMaxController.text.replaceAll(',', '.'));
+    setState(() {
+      _attempted = true;
+      _apiFieldErrors = {};
+    });
 
-    if (budgetMin != null && budgetMax != null && budgetMin > budgetMax) {
-      showAppSnackBar(context, 'O valor mínimo não pode ser maior que o máximo');
+    bool formOk = false;
+    try {
+      formOk = _formKey.currentState?.validate() ?? false;
+    } catch (_) {
+      formOk = false;
+    }
+    final photosOk = _photos.length >= 2;
+    final dateOk = _preferredDate != null;
+    final periodOk = _period != null;
+    final budgetMin = _parseBudget(_budgetMinController.text);
+    final budgetMax = _parseBudget(_budgetMaxController.text);
+    final budgetOk = budgetMin == null || budgetMax == null || budgetMin <= budgetMax;
+
+    if (!formOk || !photosOk || !dateOk || !periodOk || !budgetOk) {
+      final labels = _missingFieldLabels(
+        photosOk: photosOk,
+        dateOk: dateOk,
+        periodOk: periodOk,
+        budgetOk: budgetOk,
+        formOk: formOk,
+      );
+      _notifyMissingFields(_missingFieldsMessage(labels));
+      _scheduleScrollToFirstError(
+        photosOk: photosOk,
+        dateOk: dateOk,
+        periodOk: periodOk,
+        budgetOk: budgetOk,
+        formOk: formOk,
+      );
       return;
     }
 
@@ -247,10 +506,28 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
       await showProfessionalRequestDetail(context, created);
     } on ApiException catch (e) {
       if (!mounted) return;
-      showAppSnackBar(context, e.displayMessage);
+      final mapped = _mapApiErrors(e);
+      if (mapped.isNotEmpty) {
+        setState(() => _apiFieldErrors = mapped);
+        _formKey.currentState?.validate();
+        _notifyMissingFields(
+          'Não foi possível enviar. Verifique os campos destacados.',
+        );
+        _scheduleScrollToFirstError(
+          photosOk: _photos.length >= 2 && mapped['photos'] == null,
+          dateOk: _preferredDate != null && mapped['scheduled_at'] == null,
+          periodOk: _period != null && mapped['preferred_period'] == null,
+          budgetOk: mapped['budget'] == null &&
+              mapped['budget_min'] == null &&
+              mapped['budget_max'] == null,
+          formOk: false,
+        );
+        return;
+      }
+      showAppSnackBar(context, e.displayMessage, bottomMargin: MediaQuery.paddingOf(context).bottom + 88);
     } catch (_) {
       if (!mounted) return;
-      showAppSnackBar(context, 'Não foi possível enviar a solicitação.');
+      showAppSnackBar(context, 'Não foi possível enviar a solicitação.', bottomMargin: MediaQuery.paddingOf(context).bottom + 88);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -278,6 +555,8 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
       _prefersGoodRatings = true;
       _genderPreference = GenderPreference.any;
       _photos.clear();
+      _attempted = false;
+      _apiFieldErrors = {};
     });
   }
 
@@ -300,7 +579,9 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
       ),
       body: Form(
         key: _formKey,
+        autovalidateMode: _fieldValidateMode,
         child: ListView(
+          controller: _scrollController,
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
           children: [
             const Text(
@@ -317,124 +598,207 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
               style: TextStyle(color: AppColors.textSecondary, height: 1.4),
             ),
             const SizedBox(height: 20),
+            if (_attempted) _missingFieldsBanner(),
+            if (_attempted) const SizedBox(height: 16),
             _SectionCard(
               number: 1,
               title: 'Qual serviço você precisa?',
               color: AppColors.primary,
               icon: Icons.handyman_outlined,
               children: [
-                _label('Categoria do serviço'),
-                ServiceCategoryPicker(
-                  value: _category,
-                  prefixIcon: const Icon(Icons.lightbulb_outline),
-                  onChanged: (v) => setState(() => _category = v),
-                ),
-                const SizedBox(height: 14),
-                _label('Título do Serviço'),
-                TextFormField(
-                  controller: _titleController,
-                  decoration: const InputDecoration(
-                    hintText: 'Ex: Troca de tomada na sala',
-                  ),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Informe o título' : null,
-                ),
-                const SizedBox(height: 14),
-                _label('Descrição Detalhada'),
-                TextFormField(
-                  controller: _descriptionController,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    hintText: 'Descreva o problema ou o serviço desejado',
-                    alignLabelWithHint: true,
-                  ),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Informe a descrição' : null,
-                ),
-                const SizedBox(height: 14),
-                _label('Fotos do Problema'),
-                InkWell(
-                  onTap: _loading ? null : _addPhoto,
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: AppColors.border,
-                        style: BorderStyle.solid,
-                        width: 1.4,
+                KeyedSubtree(
+                  key: _categoryKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _label('Categoria do serviço'),
+                      ServiceCategoryPicker(
+                        value: _category,
+                        prefixIcon: const Icon(Icons.lightbulb_outline),
+                        autovalidateMode: _fieldValidateMode,
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) {
+                            return 'Selecione a categoria';
+                          }
+                          return _apiError('category');
+                        },
+                        onChanged: (v) => setState(() {
+                          _category = v;
+                          _apiFieldErrors.remove('category');
+                        }),
                       ),
-                    ),
-                    child: const Column(
-                      children: [
-                        Icon(Icons.cloud_upload_outlined, color: AppColors.primary, size: 32),
-                        SizedBox(height: 8),
-                        Text(
-                          'Toque para adicionar fotos',
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'JPG, PNG ou WEBP (máx. 5 MB)',
-                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                        ),
-                      ],
-                    ),
+                    ],
                   ),
                 ),
-                if (_photos.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 96,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _photos.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 8),
-                      itemBuilder: (context, index) {
-                        final photo = _photos[index];
-                        return Stack(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: Image.file(
-                                File(photo.path),
-                                width: 96,
-                                height: 96,
-                                fit: BoxFit.cover,
-                              ),
+                const SizedBox(height: 14),
+                KeyedSubtree(
+                  key: _titleKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _label('Título do Serviço'),
+                      TextFormField(
+                        autovalidateMode: _fieldValidateMode,
+                        controller: _titleController,
+                        decoration: const InputDecoration(
+                          hintText: 'Ex: Troca de tomada na sala',
+                        ),
+                        onChanged: (_) => _clearApi('title'),
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) {
+                            return 'Informe o título';
+                          }
+                          return _apiError('title');
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                KeyedSubtree(
+                  key: _descriptionKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _label('Descrição Detalhada'),
+                      TextFormField(
+                        autovalidateMode: _fieldValidateMode,
+                        controller: _descriptionController,
+                        maxLines: 4,
+                        decoration: const InputDecoration(
+                          hintText: 'Descreva o problema ou o serviço desejado',
+                          alignLabelWithHint: true,
+                        ),
+                        onChanged: (_) => _clearApi('description'),
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) {
+                            return 'Informe a descrição';
+                          }
+                          return _apiError('description');
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                KeyedSubtree(
+                  key: _photosKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _label('Fotos do Problema'),
+                      InkWell(
+                        onTap: _loading ? null : _addPhoto,
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 28,
+                            horizontal: 16,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _photosError != null
+                                ? AppColors.danger.withValues(alpha: 0.04)
+                                : AppColors.surface,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: _photosError != null
+                                  ? AppColors.danger
+                                  : AppColors.border,
+                              style: BorderStyle.solid,
+                              width: _photosError != null ? 1.6 : 1.4,
                             ),
-                            Positioned(
-                              top: 4,
-                              right: 4,
-                              child: Material(
-                                color: Colors.black54,
-                                shape: const CircleBorder(),
-                                child: InkWell(
-                                  customBorder: const CircleBorder(),
-                                  onTap: () => setState(() => _photos.removeAt(index)),
-                                  child: const Padding(
-                                    padding: EdgeInsets.all(4),
-                                    child: Icon(Icons.close, size: 16, color: Colors.white),
-                                  ),
+                          ),
+                          child: const Column(
+                            children: [
+                              Icon(
+                                Icons.cloud_upload_outlined,
+                                color: AppColors.primary,
+                                size: 32,
+                              ),
+                              SizedBox(height: 8),
+                              Text(
+                                'Toque para adicionar fotos',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'JPG, PNG ou WEBP (máx. 5 MB)',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
                                 ),
                               ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 8),
-                Text(
-                  'Você precisa enviar no mínimo 2 fotos para continuar',
-                  style: TextStyle(
-                    color: _photos.length < 2 ? AppColors.danger : AppColors.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (_photos.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          height: 96,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: _photos.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(width: 8),
+                            itemBuilder: (context, index) {
+                              final photo = _photos[index];
+                              return Stack(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Image.file(
+                                      File(photo.path),
+                                      width: 96,
+                                      height: 96,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: 4,
+                                    right: 4,
+                                    child: Material(
+                                      color: Colors.black54,
+                                      shape: const CircleBorder(),
+                                      child: InkWell(
+                                        customBorder: const CircleBorder(),
+                                        onTap: () => setState(() {
+                                          _photos.removeAt(index);
+                                          if (_photos.length >= 2) {
+                                            _apiFieldErrors.remove('photos');
+                                          }
+                                        }),
+                                        child: const Padding(
+                                          padding: EdgeInsets.all(4),
+                                          child: Icon(
+                                            Icons.close,
+                                            size: 16,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      Text(
+                        _photosError ??
+                            'Você precisa enviar no mínimo 2 fotos para continuar',
+                        style: TextStyle(
+                          color: _photosError != null
+                              ? AppColors.danger
+                              : AppColors.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -445,65 +809,114 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
               color: const Color(0xFF16A34A),
               icon: Icons.place_outlined,
               children: [
-                _label('Endereço Completo'),
-                TextFormField(
-                  controller: _addressController,
-                  decoration: const InputDecoration(
-                    hintText: 'Rua, número e bairro',
+                KeyedSubtree(
+                  key: _addressKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _label('Endereço Completo'),
+                      TextFormField(
+                        autovalidateMode: _fieldValidateMode,
+                        controller: _addressController,
+                        decoration: const InputDecoration(
+                          hintText: 'Rua, número e bairro',
+                        ),
+                        onChanged: (_) => _clearApi('address'),
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) {
+                            return 'Informe o endereço';
+                          }
+                          return _apiError('address') ?? _apiError('location');
+                        },
+                      ),
+                    ],
                   ),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Informe o endereço' : null,
                 ),
                 const SizedBox(height: 14),
-                _label('Cidade'),
-                TextFormField(
-                  controller: _cityController,
-                  decoration: const InputDecoration(hintText: 'Cidade'),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Informe a cidade' : null,
+                KeyedSubtree(
+                  key: _cityKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _label('Cidade'),
+                      TextFormField(
+                        autovalidateMode: _fieldValidateMode,
+                        controller: _cityController,
+                        decoration: const InputDecoration(hintText: 'Cidade'),
+                        onChanged: (_) => _clearApi('city'),
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) {
+                            return 'Informe a cidade';
+                          }
+                          return _apiError('city');
+                        },
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 14),
                 Row(
                   children: [
                     Expanded(
                       flex: 2,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _label('Estado'),
-                          TextFormField(
-                            controller: _stateController,
-                            textCapitalization: TextCapitalization.characters,
-                            maxLength: 2,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z]')),
-                              LengthLimitingTextInputFormatter(2),
-                            ],
-                            decoration: const InputDecoration(
-                              hintText: 'UF',
-                              counterText: '',
+                      child: KeyedSubtree(
+                        key: _stateKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _label('Estado'),
+                            TextFormField(
+                              autovalidateMode: _fieldValidateMode,
+                              controller: _stateController,
+                              textCapitalization: TextCapitalization.characters,
+                              maxLength: 2,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(
+                                  RegExp(r'[a-zA-Z]'),
+                                ),
+                                LengthLimitingTextInputFormatter(2),
+                              ],
+                              decoration: const InputDecoration(
+                                hintText: 'UF',
+                                counterText: '',
+                              ),
+                              onChanged: (_) => _clearApi('state'),
+                              validator: (v) {
+                                if (v == null || v.trim().length != 2) {
+                                  return 'Informe a UF';
+                                }
+                                return _apiError('state');
+                              },
                             ),
-                            validator: (v) =>
-                                (v == null || v.trim().length != 2) ? 'UF' : null,
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       flex: 3,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _label('CEP'),
-                          TextFormField(
-                            controller: _cepController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(hintText: '00000-000'),
-                            validator: (v) =>
-                                (v == null || v.trim().length < 8) ? 'CEP inválido' : null,
-                          ),
-                        ],
+                      child: KeyedSubtree(
+                        key: _cepKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _label('CEP'),
+                            TextFormField(
+                              autovalidateMode: _fieldValidateMode,
+                              controller: _cepController,
+                              keyboardType: TextInputType.number,
+                              decoration:
+                                  const InputDecoration(hintText: '00000-000'),
+                              onChanged: (_) => _clearApi('cep'),
+                              validator: (v) {
+                                if (v == null || v.trim().length < 8) {
+                                  return 'Informe um CEP válido';
+                                }
+                                return _apiError('cep');
+                              },
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -512,6 +925,7 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
                 _label('Ponto de Referência'),
                 TextFormField(
                   controller: _referenceController,
+                  autovalidateMode: _fieldValidateMode,
                   decoration: const InputDecoration(
                     hintText: 'Ex: Próximo ao mercado',
                   ),
@@ -525,21 +939,25 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
               icon: Icons.calendar_month_outlined,
               children: [
                 _label('Data Preferida'),
-                InkWell(
-                  onTap: _pickDate,
-                  borderRadius: BorderRadius.circular(12),
-                  child: InputDecorator(
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.calendar_today_outlined),
-                    ),
-                    child: Text(
-                      _preferredDate == null
-                          ? 'Selecione a data'
-                          : _formatDate(_preferredDate!),
-                      style: TextStyle(
-                        color: _preferredDate == null
-                            ? AppColors.textSecondary
-                            : AppColors.textPrimary,
+                KeyedSubtree(
+                  key: _dateKey,
+                  child: InkWell(
+                    onTap: _pickDate,
+                    borderRadius: BorderRadius.circular(12),
+                    child: InputDecorator(
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.calendar_today_outlined),
+                        errorText: _dateError,
+                      ),
+                      child: Text(
+                        _preferredDate == null
+                            ? 'Selecione a data'
+                            : _formatDate(_preferredDate!),
+                        style: TextStyle(
+                          color: _preferredDate == null
+                              ? AppColors.textSecondary
+                              : AppColors.textPrimary,
+                        ),
                       ),
                     ),
                   ),
@@ -547,56 +965,82 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
                 const SizedBox(height: 14),
                 _label('Período Preferido'),
                 const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: PreferredPeriod.values.map((period) {
-                    final selected = _period == period;
-                    return SizedBox(
-                      width: (MediaQuery.of(context).size.width - 72) / 2,
-                      child: InkWell(
-                        onTap: () => setState(() => _period = period),
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: selected
-                                ? const Color(0xFFF59E0B).withValues(alpha: 0.12)
-                                : AppColors.surface,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: selected
-                                  ? const Color(0xFFF59E0B)
-                                  : AppColors.border,
-                              width: selected ? 1.5 : 1,
+                KeyedSubtree(
+                  key: _periodKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: PreferredPeriod.values.map((period) {
+                          final selected = _period == period;
+                          final hasError = _periodError != null && !selected;
+                          return SizedBox(
+                            width: (MediaQuery.of(context).size.width - 72) / 2,
+                            child: InkWell(
+                              onTap: () => setState(() {
+                                _period = period;
+                                _apiFieldErrors.remove('preferred_period');
+                              }),
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: selected
+                                      ? const Color(0xFFF59E0B)
+                                          .withValues(alpha: 0.12)
+                                      : AppColors.surface,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: selected
+                                        ? const Color(0xFFF59E0B)
+                                        : hasError
+                                            ? AppColors.danger
+                                            : AppColors.border,
+                                    width: selected || hasError ? 1.5 : 1,
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      period.label,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        color: selected
+                                            ? const Color(0xFFB45309)
+                                            : AppColors.textPrimary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      period.subtitle,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      if (_periodError != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6, left: 12),
+                          child: Text(
+                            _periodError!,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                              fontSize: 12,
                             ),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                period.label,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  color: selected
-                                      ? const Color(0xFFB45309)
-                                      : AppColors.textPrimary,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                period.subtitle,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
                         ),
-                      ),
-                    );
-                  }).toList(),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -606,35 +1050,72 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
               color: const Color(0xFF22C55E),
               icon: Icons.payments_outlined,
               children: [
-                Row(
+                Column(
+                  key: _budgetKey,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _label('Valor Mínimo (R\$)'),
-                          TextFormField(
-                            controller: _budgetMinController,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            decoration: const InputDecoration(hintText: '0,00'),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _label('Valor Mínimo (R\$)'),
+                              TextFormField(
+                                controller: _budgetMinController,
+                                autovalidateMode: _fieldValidateMode,
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                  decimal: true,
+                                ),
+                                decoration: const InputDecoration(hintText: '0,00'),
+                                onChanged: (_) {
+                                  _clearApi('budget_min');
+                                  _clearApi('budget_max');
+                                  _clearApi('budget');
+                                  setState(() {});
+                                },
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _label('Valor Máximo (R\$)'),
-                          TextFormField(
-                            controller: _budgetMaxController,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            decoration: const InputDecoration(hintText: '0,00'),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _label('Valor Máximo (R\$)'),
+                              TextFormField(
+                                controller: _budgetMaxController,
+                                autovalidateMode: _fieldValidateMode,
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                  decimal: true,
+                                ),
+                                decoration: const InputDecoration(hintText: '0,00'),
+                                onChanged: (_) {
+                                  _clearApi('budget_min');
+                                  _clearApi('budget_max');
+                                  _clearApi('budget');
+                                  setState(() {});
+                                },
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
+                    if (_budgetRangeError != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6, left: 12),
+                        child: Text(
+                          _budgetRangeError!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 14),
@@ -664,19 +1145,34 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
               icon: Icons.inventory_2_outlined,
               children: [
                 _label('Quem será responsável pelos materiais?'),
-                DropdownButtonFormField<String>(
-                  value: _materialsResponsible,
-                  decoration: const InputDecoration(hintText: 'Selecione uma opção'),
-                  items: _materialsOptions
-                      .map((o) => DropdownMenuItem(value: o.$1, child: Text(o.$2)))
-                      .toList(),
-                  onChanged: (v) => setState(() => _materialsResponsible = v),
-                  validator: (v) => v == null ? 'Selecione uma opção' : null,
+                KeyedSubtree(
+                  key: _materialsKey,
+                  child: DropdownButtonFormField<String>(
+                    value: _materialsResponsible,
+                    autovalidateMode: _fieldValidateMode,
+                    decoration: const InputDecoration(
+                      hintText: 'Selecione uma opção',
+                    ),
+                    items: _materialsOptions
+                        .map(
+                          (o) => DropdownMenuItem(value: o.$1, child: Text(o.$2)),
+                        )
+                        .toList(),
+                    onChanged: (v) => setState(() {
+                      _materialsResponsible = v;
+                      _apiFieldErrors.remove('materials_responsible');
+                    }),
+                    validator: (v) {
+                      if (v == null) return 'Selecione uma opção';
+                      return _apiError('materials_responsible');
+                    },
+                  ),
                 ),
                 const SizedBox(height: 14),
                 _label('Detalhes dos Materiais'),
                 TextFormField(
                   controller: _materialsDetailsController,
+                  autovalidateMode: _fieldValidateMode,
                   maxLines: 3,
                   decoration: const InputDecoration(
                     hintText: 'Liste materiais necessários, se houver',
@@ -837,6 +1333,47 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
     );
   }
 
+  Widget _missingFieldsBanner() {
+    final min = _parseBudget(_budgetMinController.text);
+    final max = _parseBudget(_budgetMaxController.text);
+    final labels = _missingFieldLabels(
+      photosOk: _photos.length >= 2,
+      dateOk: _preferredDate != null,
+      periodOk: _period != null,
+      budgetOk: min == null || max == null || min <= max,
+      formOk: _category != null && _category!.trim().isNotEmpty,
+    );
+    if (labels.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.danger.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.danger.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.error_outline, color: AppColors.danger, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _missingFieldsMessage(labels),
+              style: const TextStyle(
+                color: AppColors.danger,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _label(String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -883,7 +1420,7 @@ class _SectionCard extends StatelessWidget {
           ),
         ],
       ),
-      clipBehavior: Clip.antiAlias,
+      clipBehavior: Clip.none,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

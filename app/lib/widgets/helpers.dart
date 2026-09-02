@@ -13,7 +13,11 @@ String formatCurrency(double value) {
   return NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$').format(value);
 }
 
-void showAppSnackBar(BuildContext context, String message) {
+void showAppSnackBar(
+  BuildContext context,
+  String message, {
+  double? bottomMargin,
+}) {
   if (SessionExpiry.isHandling) return;
   if (message == SessionExpiry.sessionExpiredMessage) return;
 
@@ -24,7 +28,13 @@ void showAppSnackBar(BuildContext context, String message) {
   final messenger = ScaffoldMessenger.of(context);
   messenger.clearSnackBars();
   messenger.showSnackBar(
-    SnackBar(content: Text(text), behavior: SnackBarBehavior.floating),
+    SnackBar(
+      content: Text(text),
+      behavior: SnackBarBehavior.floating,
+      margin: bottomMargin == null
+          ? null
+          : EdgeInsets.fromLTRB(16, 0, 16, bottomMargin),
+    ),
   );
 }
 

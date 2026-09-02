@@ -12,6 +12,7 @@ class ServiceCategoryPicker extends StatefulWidget {
   final bool enabled;
   final String hintText;
   final Widget? prefixIcon;
+  final AutovalidateMode autovalidateMode;
   final bool keepUnknownValue;
 
   /// Quando `true`, lista só categorias raiz (não os serviços/filhos).
@@ -25,6 +26,7 @@ class ServiceCategoryPicker extends StatefulWidget {
     this.enabled = true,
     this.hintText = 'Selecione a categoria',
     this.prefixIcon,
+    this.autovalidateMode = AutovalidateMode.disabled,
     this.keepUnknownValue = true,
     this.categoriesOnly = false,
   });
@@ -179,6 +181,7 @@ class _ServiceCategoryPickerState extends State<ServiceCategoryPicker> {
     return DropdownButtonFormField<String>(
       isExpanded: true,
       value: value,
+      autovalidateMode: widget.autovalidateMode,
       decoration: InputDecoration(
         hintText: _loading ? 'Carregando categorias...' : widget.hintText,
         prefixIcon: widget.prefixIcon,
