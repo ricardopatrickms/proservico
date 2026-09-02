@@ -11,48 +11,38 @@ class AddressService {
   Future<List<UserAddress>> list() async {
     final data = await _api.getList('/user-addresses', auth: true);
     return data
-        .whereType<Map<String, dynamic>>()
-        .map(UserAddress.fromJson)
+        .whereType<Map>()
+        .map((e) => UserAddress.fromJson(Map<String, dynamic>.from(e)))
         .toList();
   }
 
-  Future<UserAddress> create({
-    required String label,
-    required String details,
-  }) async {
+  Future<UserAddress> create(UserAddressInput input) async {
     final data = await _api.post(
       '/user-addresses',
       auth: true,
-      body: {
-        'label': label,
-        'details': details,
-      },
+      body: input.toJson(),
     );
     final addressJson = data['address'];
-    if (addressJson is! Map<String, dynamic>) {
+    if (addressJson is! Map) {
       throw const ApiException('Resposta inválida da API');
     }
-    return UserAddress.fromJson(addressJson);
+    return UserAddress.fromJson(Map<String, dynamic>.from(addressJson));
   }
 
   Future<UserAddress> update({
     required String id,
-    required String label,
-    required String details,
+    required UserAddressInput input,
   }) async {
     final data = await _api.put(
       '/user-addresses/$id',
       auth: true,
-      body: {
-        'label': label,
-        'details': details,
-      },
+      body: input.toJson(),
     );
     final addressJson = data['address'];
-    if (addressJson is! Map<String, dynamic>) {
+    if (addressJson is! Map) {
       throw const ApiException('Resposta inválida da API');
     }
-    return UserAddress.fromJson(addressJson);
+    return UserAddress.fromJson(Map<String, dynamic>.from(addressJson));
   }
 
   Future<void> delete(String id) async {

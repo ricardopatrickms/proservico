@@ -11,7 +11,9 @@ import '../../services/address_service.dart';
 import '../../services/api_exception.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/address_form_dialog.dart';
 import '../../widgets/helpers.dart';
+import '../../widgets/phone_input_formatter.dart';
 
 enum _PickSource { camera, gallery }
 
@@ -39,7 +41,11 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
     final user = SessionStore.instance.currentUser;
     _nameController = TextEditingController(text: user?.name ?? '');
     _emailController = TextEditingController(text: user?.email ?? '');
-    _phoneController = TextEditingController(text: user?.phone ?? '');
+    _phoneController = TextEditingController(
+      text: PhoneInputFormatter.formatPhone(
+        PhoneInputFormatter.digitsOnly(user?.phone ?? ''),
+      ),
+    );
     _existingPhotoUrl = user?.profilePhotoUrl;
     _loadAddresses();
   }
@@ -193,7 +199,11 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
 
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
-    final phone = _phoneController.text.trim();
+    final phone = PhoneInputFormatter.digitsOnly(_phoneController.text);
+    if (phone.length < 10) {
+      showAppSnackBar(context, 'Informe um telefone válido');
+      return;
+    }
 
     if (name.isEmpty) {
       showAppSnackBar(context, 'Informe o nome completo');
@@ -220,7 +230,9 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
       if (!mounted) return;
       _nameController.text = user.name;
       _emailController.text = user.email;
-      _phoneController.text = user.phone;
+      _phoneController.text = PhoneInputFormatter.formatPhone(
+        PhoneInputFormatter.digitsOnly(user.phone),
+      );
       setState(() {
         _existingPhotoUrl = user.profilePhotoUrl;
         _pickedPhotoPath = null;
@@ -238,66 +250,21 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
   }
 
   Future<void> _addOrEditAddress({UserAddress? existing}) async {
-    final labelCtrl = TextEditingController(text: existing?.label ?? '');
-    final detailsCtrl = TextEditingController(text: existing?.details ?? '');
-
-    final saved = await showDialog<bool>(
+    final input = await showAddressFormDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(existing == null ? 'Novo endereço' : 'Editar endereço'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: labelCtrl,
-              decoration: const InputDecoration(labelText: 'Apelido (ex: Casa)'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: detailsCtrl,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Endereço completo',
-                alignLabelWithHint: true,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Salvar'),
-          ),
-        ],
-      ),
+      existing: existing,
     );
-
-    if (saved != true) return;
-    final label = labelCtrl.text.trim();
-    final details = detailsCtrl.text.trim();
-    if (!mounted) return;
-    if (label.isEmpty || details.isEmpty) {
-      showAppSnackBar(context, 'Preencha apelido e endereço');
-      return;
-    }
+    if (input == null || !mounted) return;
 
     try {
       if (existing == null) {
-        final created = await AddressService.instance.create(
-          label: label,
-          details: details,
-        );
+        final created = await AddressService.instance.create(input);
         if (!mounted) return;
         setState(() => _addresses = [..._addresses, created]);
       } else {
         final updated = await AddressService.instance.update(
           id: existing.id,
-          label: label,
-          details: details,
+          input: input,
         );
         if (!mounted) return;
         setState(() {
@@ -484,6 +451,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                   TextField(
                     controller: _phoneController,
                     keyboardType: TextInputType.phone,
+                    inputFormatters: [PhoneInputFormatter()],
                     decoration: const InputDecoration(hintText: '(00) 00000-0000'),
                   ),
                   const SizedBox(height: 20),
@@ -554,7 +522,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        address.details,
+                                        address.displayLine,
                                         style: const TextStyle(
                                           fontSize: 13,
                                           color: AppColors.textSecondary,
@@ -609,28 +577,6 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                       minimumSize: const Size.fromHeight(48),
                       alignment: Alignment.centerLeft,
                       foregroundColor: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      showConfirmDialog(
-                        context: context,
-                        title: 'Excluir Conta',
-                        message:
-                            'Esta ação não está disponível no Módulo 1. Em breve você poderá excluir sua conta.',
-                        onConfirm: () {},
-                      );
-                    },
-                    icon: const Icon(Icons.delete_outline, color: AppColors.danger),
-                    label: const Text(
-                      'Excluir Conta',
-                      style: TextStyle(color: AppColors.danger),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                      alignment: Alignment.centerLeft,
-                      side: const BorderSide(color: AppColors.danger),
                     ),
                   ),
                 ],

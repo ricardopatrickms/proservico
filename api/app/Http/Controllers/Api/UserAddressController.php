@@ -23,11 +23,7 @@ class UserAddressController extends Controller
     {
         $user = Auth::guard('api')->user();
 
-        $data = $request->validate([
-            'label' => ['required', 'string', 'max:100'],
-            'details' => ['required', 'string', 'max:1000'],
-        ]);
-
+        $data = $this->validatedAddress($request);
         $address = $user->addresses()->create($data);
 
         return response()->json([
@@ -40,11 +36,7 @@ class UserAddressController extends Controller
     {
         $this->ensureOwner($userAddress);
 
-        $data = $request->validate([
-            'label' => ['required', 'string', 'max:100'],
-            'details' => ['required', 'string', 'max:1000'],
-        ]);
-
+        $data = $this->validatedAddress($request);
         $userAddress->update($data);
 
         return response()->json([
@@ -62,6 +54,33 @@ class UserAddressController extends Controller
         return response()->json([
             'message' => 'Endereço removido com sucesso',
         ]);
+    }
+
+    protected function validatedAddress(Request $request): array
+    {
+        $data = $request->validate([
+            'label' => ['required', 'string', 'max:100'],
+            'address' => ['required', 'string', 'max:255'],
+            'city' => ['required', 'string', 'max:255'],
+            'state' => ['required', 'string', 'max:2'],
+            'cep' => ['required', 'string', 'max:12'],
+            'reference_point' => ['nullable', 'string', 'max:255'],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            // legado: aceita details se ainda vier, mas prioriza campos estruturados
+            'details' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $data['state'] = strtoupper($data['state']);
+        $data['details'] = UserAddress::composeDetails(
+            $data['address'],
+            $data['city'],
+            $data['state'],
+            $data['cep'],
+            $data['reference_point'] ?? null,
+        );
+
+        return $data;
     }
 
     protected function ensureOwner(UserAddress $userAddress): void

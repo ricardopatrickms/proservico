@@ -12,7 +12,9 @@ import '../../services/api_exception.dart';
 import '../../services/auth_service.dart';
 import '../../services/service_category_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/address_form_dialog.dart';
 import '../../widgets/helpers.dart';
+import '../../widgets/phone_input_formatter.dart';
 import 'professional_placeholder_screen.dart';
 
 enum _PickSource { camera, gallery }
@@ -46,7 +48,11 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
     final user = SessionStore.instance.currentUser;
     _nameController = TextEditingController(text: user?.name ?? '');
     _emailController = TextEditingController(text: user?.email ?? '');
-    _phoneController = TextEditingController(text: user?.phone ?? '');
+    _phoneController = TextEditingController(
+      text: PhoneInputFormatter.formatPhone(
+        PhoneInputFormatter.digitsOnly(user?.phone ?? ''),
+      ),
+    );
     _existingPhotoUrl = user?.profilePhotoUrl;
     _areas.addAll(user?.serviceAreas ?? const []);
     _loadProfile();
@@ -73,7 +79,9 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
       if (!mounted) return;
       _nameController.text = user.name;
       _emailController.text = user.email;
-      _phoneController.text = user.phone;
+      _phoneController.text = PhoneInputFormatter.formatPhone(
+        PhoneInputFormatter.digitsOnly(user.phone),
+      );
       setState(() {
         _existingPhotoUrl = user.profilePhotoUrl;
         _areas
@@ -254,7 +262,7 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
 
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
-    final phone = _phoneController.text.trim();
+    final phone = PhoneInputFormatter.digitsOnly(_phoneController.text);
 
     if (name.isEmpty) {
       showAppSnackBar(context, 'Informe o nome completo');
@@ -262,6 +270,10 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
     }
     if (!email.contains('@')) {
       showAppSnackBar(context, 'Informe um e-mail válido');
+      return;
+    }
+    if (phone.length < 10) {
+      showAppSnackBar(context, 'Informe um telefone válido');
       return;
     }
     if (!_hasProfilePhoto) {
@@ -281,7 +293,9 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
       if (!mounted) return;
       _nameController.text = user.name;
       _emailController.text = user.email;
-      _phoneController.text = user.phone;
+      _phoneController.text = PhoneInputFormatter.formatPhone(
+        PhoneInputFormatter.digitsOnly(user.phone),
+      );
       setState(() {
         _existingPhotoUrl = user.profilePhotoUrl;
         _pickedPhotoPath = null;
@@ -299,60 +313,21 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
   }
 
   Future<void> _addOrEditAddress({UserAddress? existing}) async {
-    final labelCtrl = TextEditingController(text: existing?.label ?? '');
-    final detailsCtrl = TextEditingController(text: existing?.details ?? '');
-
-    final saved = await showDialog<bool>(
+    final input = await showAddressFormDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(existing == null ? 'Novo endereço' : 'Editar endereço'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: labelCtrl,
-              decoration: const InputDecoration(labelText: 'Apelido (ex: Casa)'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: detailsCtrl,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Endereço completo',
-                alignLabelWithHint: true,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Salvar')),
-        ],
-      ),
+      existing: existing,
     );
-
-    if (saved != true) return;
-    final label = labelCtrl.text.trim();
-    final details = detailsCtrl.text.trim();
-    if (!mounted) return;
-    if (label.isEmpty || details.isEmpty) {
-      showAppSnackBar(context, 'Preencha apelido e endereço');
-      return;
-    }
+    if (input == null || !mounted) return;
 
     try {
       if (existing == null) {
-        final created = await AddressService.instance.create(
-          label: label,
-          details: details,
-        );
+        final created = await AddressService.instance.create(input);
         if (!mounted) return;
         setState(() => _addresses = [..._addresses, created]);
       } else {
         final updated = await AddressService.instance.update(
           id: existing.id,
-          label: label,
-          details: details,
+          input: input,
         );
         if (!mounted) return;
         setState(() {
@@ -459,7 +434,7 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
       final user = await AuthService.instance.updateProfile(
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
-        phone: _phoneController.text.trim(),
+        phone: PhoneInputFormatter.digitsOnly(_phoneController.text),
         city: SessionStore.instance.currentUser?.city,
         serviceAreas: _areas.toList(),
       );
@@ -553,7 +528,11 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
                 TextField(
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(labelText: 'Telefone'),
+                  inputFormatters: [PhoneInputFormatter()],
+                  decoration: const InputDecoration(
+                    labelText: 'Telefone',
+                    hintText: '(00) 00000-0000',
+                  ),
                 ),
                 const SizedBox(height: 16),
                 SizedBox(
@@ -615,7 +594,7 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
                                     Text(a.label, style: const TextStyle(fontWeight: FontWeight.w700)),
                                     const SizedBox(height: 2),
                                     Text(
-                                      a.details,
+                                      a.displayLine,
                                       style: const TextStyle(
                                         fontSize: 12,
                                         color: AppColors.textSecondary,
@@ -660,14 +639,6 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
                   title: const Text('Alterar Senha'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: _changePassword,
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.delete_forever_outlined, color: AppColors.danger),
-                  title: const Text('Excluir Conta', style: TextStyle(color: AppColors.danger)),
-                  trailing: const Icon(Icons.chevron_right, color: AppColors.danger),
-                  onTap: () => showAppSnackBar(context, 'Disponível em breve'),
                 ),
               ],
             ),
