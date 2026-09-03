@@ -61,6 +61,7 @@ class UserAddressController extends Controller
         $data = $request->validate([
             'label' => ['required', 'string', 'max:100'],
             'address' => ['required', 'string', 'max:255'],
+            'number' => ['required', 'string', 'max:20'],
             'city' => ['required', 'string', 'max:255'],
             'state' => ['required', 'string', 'max:2'],
             'cep' => ['required', 'string', 'max:12'],
@@ -74,6 +75,7 @@ class UserAddressController extends Controller
         $data['state'] = strtoupper($data['state']);
         $data['details'] = UserAddress::composeDetails(
             $data['address'],
+            $data['number'],
             $data['city'],
             $data['state'],
             $data['cep'],

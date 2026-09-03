@@ -12,6 +12,7 @@ class ResolvedAddress {
   final double latitude;
   final double longitude;
   final String address;
+  final String number;
   final String city;
   final String state;
   final String cep;
@@ -20,6 +21,7 @@ class ResolvedAddress {
     required this.latitude,
     required this.longitude,
     required this.address,
+    this.number = '',
     required this.city,
     required this.state,
     required this.cep,
@@ -97,6 +99,7 @@ class AppLocationService {
       latitude: position.latitude,
       longitude: position.longitude,
       address: fromNative?.address ?? fromWeb?.address ?? '',
+      number: fromNative?.number ?? fromWeb?.number ?? '',
       city: fromNative?.city ?? fromWeb?.city ?? '',
       state: fromNative?.state ?? fromWeb?.state ?? '',
       cep: fromNative?.cep ?? fromWeb?.cep ?? '',
@@ -200,12 +203,8 @@ class AppLocationService {
             orElse: () => '',
           );
 
-      final streetLine = [
-        if (streetName.isNotEmpty) streetName,
-        if (houseNumber.isNotEmpty) houseNumber,
-      ].join(', ');
       final addressLine = [
-        if (streetLine.isNotEmpty) streetLine,
+        if (streetName.isNotEmpty) streetName,
         if (suburb.isNotEmpty) suburb,
       ].join(' - ');
 
@@ -234,6 +233,7 @@ class AppLocationService {
             address: viaCep.addressLine.isNotEmpty
                 ? viaCep.addressLine
                 : addressLine,
+            number: houseNumber,
             city: viaCep.city.isNotEmpty ? viaCep.city : city,
             state: viaCep.state.isNotEmpty ? viaCep.state : state,
             cep: viaCep.cep,
@@ -245,6 +245,7 @@ class AppLocationService {
         latitude: latitude,
         longitude: longitude,
         address: addressLine,
+        number: houseNumber,
         city: city,
         state: state.length == 2 ? state : (_toUf(state) ?? ''),
         cep: cep,
@@ -260,10 +261,8 @@ class AppLocationService {
     double latitude,
     double longitude,
   ) {
-    final street = [
-      place.thoroughfare,
-      place.subThoroughfare,
-    ].whereType<String>().map((e) => e.trim()).where((e) => e.isNotEmpty).join(', ');
+    final street = (place.thoroughfare ?? '').trim();
+    final number = (place.subThoroughfare ?? '').trim();
 
     final address = street.isNotEmpty
         ? street
@@ -297,6 +296,7 @@ class AppLocationService {
       latitude: latitude,
       longitude: longitude,
       address: addressLine,
+      number: number,
       city: city,
       state: state,
       cep: _formatCep(place.postalCode),

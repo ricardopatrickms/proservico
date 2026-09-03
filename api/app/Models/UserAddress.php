@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'label',
     'details',
     'address',
+    'number',
     'city',
     'state',
     'cep',
@@ -35,13 +36,18 @@ class UserAddress extends Model
 
     public static function composeDetails(
         ?string $address,
+        ?string $number,
         ?string $city,
         ?string $state,
         ?string $cep,
         ?string $referencePoint = null,
     ): string {
+        $street = collect([$address, $number])
+            ->filter(fn ($v) => filled(trim((string) $v)))
+            ->implode(', ');
+
         $parts = collect([
-            $address,
+            $street,
             $city,
             $state,
             $cep,

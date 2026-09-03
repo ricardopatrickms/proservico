@@ -3,6 +3,7 @@ class UserAddress {
   final String label;
   final String details;
   final String? address;
+  final String? number;
   final String? city;
   final String? state;
   final String? cep;
@@ -15,6 +16,7 @@ class UserAddress {
     required this.label,
     required this.details,
     this.address,
+    this.number,
     this.city,
     this.state,
     this.cep,
@@ -29,6 +31,7 @@ class UserAddress {
       label: json['label']?.toString() ?? 'Endereço',
       details: json['details']?.toString() ?? '',
       address: json['address']?.toString(),
+      number: json['number']?.toString(),
       city: json['city']?.toString(),
       state: json['state']?.toString(),
       cep: json['cep']?.toString(),
@@ -39,8 +42,12 @@ class UserAddress {
   }
 
   String get displayLine {
-    final parts = [
+    final street = [
       if (address != null && address!.trim().isNotEmpty) address!.trim(),
+      if (number != null && number!.trim().isNotEmpty) number!.trim(),
+    ].join(', ');
+    final parts = [
+      if (street.isNotEmpty) street,
       if (city != null && city!.trim().isNotEmpty) city!.trim(),
       if (state != null && state!.trim().isNotEmpty) state!.trim(),
       if (cep != null && cep!.trim().isNotEmpty) cep!.trim(),
@@ -59,6 +66,7 @@ class UserAddress {
 class UserAddressInput {
   final String label;
   final String address;
+  final String number;
   final String city;
   final String state;
   final String cep;
@@ -69,6 +77,7 @@ class UserAddressInput {
   const UserAddressInput({
     required this.label,
     required this.address,
+    required this.number,
     required this.city,
     required this.state,
     required this.cep,
@@ -80,6 +89,7 @@ class UserAddressInput {
   Map<String, dynamic> toJson() => {
         'label': label,
         'address': address,
+        'number': number,
         'city': city,
         'state': state,
         'cep': cep,
