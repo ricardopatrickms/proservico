@@ -126,7 +126,7 @@ class _ProfessionalReceivedScreenState
 
     return ProfessionalPageScaffold(
       title: 'Solicitações de Serviços',
-      subtitle: 'Novos pedidos de clientes em sua área de atuação',
+      subtitle: 'Novos pedidos de clientes na sua cidade',
       child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
@@ -208,7 +208,7 @@ class _ProfessionalReceivedScreenState
                 icon: Icons.search,
                 title: 'Nenhuma solicitação encontrada',
                 subtitle:
-                    'Não há solicitações de serviços disponíveis no momento para sua área de atuação.',
+                    'Só aparecem pedidos da mesma cidade do seu cadastro. Confira seu endereço no perfil.',
               )
             else
               ...filtered.map(

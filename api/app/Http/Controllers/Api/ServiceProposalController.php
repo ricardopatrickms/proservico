@@ -35,6 +35,12 @@ class ServiceProposalController extends Controller
             return response()->json(['message' => 'Esta solicitação não está disponível para propostas'], 422);
         }
 
+        if (! $user->servesCity($serviceRequest->city)) {
+            return response()->json([
+                'message' => 'Você só pode enviar propostas para solicitações da mesma cidade do seu cadastro.',
+            ], 422);
+        }
+
         $data = $request->validate([
             'amount' => ['required', 'numeric', 'min:0.01'],
             'message' => ['required', 'string', 'min:10', 'max:2000'],
@@ -119,7 +125,11 @@ class ServiceProposalController extends Controller
 
         if ($user->isProfessional() && (
             $serviceRequest->professional_id === $user->id
-            || ($serviceRequest->professional_id === null && $serviceRequest->status === 'pending')
+            || (
+                $serviceRequest->professional_id === null
+                && $serviceRequest->status === 'pending'
+                && $user->servesCity($serviceRequest->city)
+            )
         )) {
             return;
         }

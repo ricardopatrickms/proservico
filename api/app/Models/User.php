@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 
 #[Fillable([
@@ -130,6 +131,54 @@ class User extends Authenticatable implements JWTSubject
     public function isPending(): bool
     {
         return $this->status === UserStatus::Pendente;
+    }
+
+    /**
+     * Profissional só atende pedidos da mesma cidade (perfil, região ou endereços salvos).
+     */
+    public function servesCity(?string $city): bool
+    {
+        $target = static::normalizeCityName($city);
+        if ($target === null) {
+            return false;
+        }
+
+        return in_array($target, $this->servingCities(), true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function servingCities(): array
+    {
+        $this->loadMissing(['addresses', 'professionalProfile']);
+
+        $cities = collect([
+            $this->city,
+            $this->professionalProfile?->region,
+            ...$this->addresses->pluck('city')->all(),
+        ])
+            ->map(fn ($city) => static::normalizeCityName(is_string($city) ? $city : null))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        return $cities;
+    }
+
+    public static function normalizeCityName(?string $city): ?string
+    {
+        $value = trim((string) $city);
+        if ($value === '') {
+            return null;
+        }
+
+        $value = Str::ascii($value);
+        $value = preg_replace('/[\s]*[\/,.\-–—][\s]*[A-Za-z]{2}$/', '', $value) ?? $value;
+        $value = Str::lower(trim(preg_replace('/\s+/', ' ', $value) ?? $value));
+
+        return $value === '' ? null : $value;
     }
 
     public function isBlockedFromAccess(): bool

@@ -32,7 +32,21 @@ class ServiceRequestController extends Controller
             });
         }
 
-        return response()->json($query->latest()->get());
+        $requests = $query->latest()->get();
+
+        if ($user->isProfessional()) {
+            $requests = $requests
+                ->filter(function (ServiceRequest $request) use ($user) {
+                    if ((int) $request->professional_id === (int) $user->id) {
+                        return true;
+                    }
+
+                    return $user->servesCity($request->city);
+                })
+                ->values();
+        }
+
+        return response()->json($requests);
     }
 
     public function store(Request $request): JsonResponse
@@ -161,6 +175,11 @@ class ServiceRequestController extends Controller
         ]);
 
         if ($user->isProfessional() && $serviceRequest->professional_id === null && $data['status'] === 'in_progress') {
+            if (! $user->servesCity($serviceRequest->city)) {
+                return response()->json([
+                    'message' => 'Você só pode atender solicitações da mesma cidade do seu cadastro.',
+                ], 422);
+            }
             $serviceRequest->professional_id = $user->id;
         }
 
@@ -188,7 +207,11 @@ class ServiceRequestController extends Controller
 
         if ($user->isProfessional() && (
             $serviceRequest->professional_id === $user->id
-            || ($serviceRequest->professional_id === null && $serviceRequest->status === 'pending')
+            || (
+                $serviceRequest->professional_id === null
+                && $serviceRequest->status === 'pending'
+                && $user->servesCity($serviceRequest->city)
+            )
         )) {
             return;
         }

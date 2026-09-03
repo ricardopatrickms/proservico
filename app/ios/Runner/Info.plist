@@ -33,10 +33,10 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Precisamos usar a câmera para fotografar documentos, fotos de serviços e a foto de perfil.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Acesso ao microfone pode ser necessário ao gravar vídeos com a câmera.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Precisamos da sua localização para preencher automaticamente o endereço do serviço.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Acesso ao microfone pode ser necessário ao gravar vídeos com a câmera.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Precisamos salvar fotos na sua galeria quando necessário.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
