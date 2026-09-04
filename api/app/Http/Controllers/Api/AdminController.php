@@ -37,7 +37,7 @@ class AdminController extends Controller
     {
         $this->ensureAdmin();
 
-        $query = User::with('professionalProfile')
+        $query = User::with(['professionalProfile', 'addresses'])
             ->withCount(['serviceRequests', 'professionalServices', 'assignedServices'])
             ->latest();
 
@@ -67,10 +67,10 @@ class AdminController extends Controller
         }
 
         if ($user->isProfessional()) {
-            $user->load('professionalProfile')
+            $user->load(['professionalProfile', 'addresses'])
                 ->loadCount(['serviceRequests', 'professionalServices', 'assignedServices']);
         } else {
-            $user->loadCount(['serviceRequests']);
+            $user->load('addresses')->loadCount(['serviceRequests']);
         }
 
         return response()->json($user);
