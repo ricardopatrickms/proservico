@@ -8,7 +8,9 @@ plugins {
 android {
     namespace = "com.example.pro_servico"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // Fixado no NDK exigido pelos plugins (default do AGP 8.7.0); flutter.ndkVersion
+    // aponta para 26.3.11579264 no Flutter 3.29.3. NDKs sao retrocompativeis.
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
