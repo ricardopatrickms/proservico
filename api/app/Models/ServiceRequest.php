@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Storage;
     'description',
     'location',
     'address',
+    'number',
     'city',
     'state',
     'cep',

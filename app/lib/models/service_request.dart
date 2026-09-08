@@ -13,6 +13,7 @@ class ServiceRequest {
   final String description;
   final String location;
   final String? address;
+  final String? number;
   final String? city;
   final String? state;
   final String? cep;
@@ -33,6 +34,8 @@ class ServiceRequest {
   final bool? prefersGoodRatings;
   final GenderPreference? genderPreference;
   final List<String> photoLabels;
+  /// Paths relativos no storage (`service-requests/...`), usados na edição.
+  final List<String> photoPaths;
   final List<String> photoUrls;
   final ServiceStatus status;
   final String? professionalName;
@@ -46,6 +49,7 @@ class ServiceRequest {
     required this.description,
     required this.location,
     this.address,
+    this.number,
     this.city,
     this.state,
     this.cep,
@@ -66,6 +70,7 @@ class ServiceRequest {
     this.prefersGoodRatings,
     this.genderPreference,
     this.photoLabels = const [],
+    this.photoPaths = const [],
     this.photoUrls = const [],
     this.status = ServiceStatus.pending,
     this.professionalName,
@@ -93,6 +98,7 @@ class ServiceRequest {
       description: json['description']?.toString() ?? '',
       location: json['location']?.toString() ?? '',
       address: json['address']?.toString(),
+      number: json['number']?.toString(),
       city: json['city']?.toString(),
       state: json['state']?.toString(),
       cep: json['cep']?.toString(),
@@ -120,7 +126,10 @@ class ServiceRequest {
               ?.map((e) => e.toString())
               .toList() ??
           const [],
-      photoUrls: urls.isNotEmpty ? urls : photos,
+      photoPaths: photos,
+      photoUrls: urls.isNotEmpty
+          ? urls
+          : photos.map((p) => p.startsWith('http') ? p : p).toList(),
       status: serviceStatusFromApi(json['status']?.toString()),
       professionalName: professional is Map
           ? professional['name']?.toString()
@@ -141,6 +150,15 @@ class ServiceRequest {
     ];
     if (parts.isNotEmpty) return parts.join(', ');
     return location;
+  }
+
+  String get addressWithNumber {
+    final street = address?.trim() ?? '';
+    final num = number?.trim() ?? '';
+    if (street.isEmpty && num.isEmpty) return location;
+    if (num.isEmpty) return street;
+    if (street.isEmpty) return num;
+    return '$street, $num';
   }
 
   String? get budgetRangeLabel {

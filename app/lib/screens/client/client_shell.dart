@@ -86,6 +86,14 @@ class _ClientShellState extends State<ClientShell> {
     ClientRequestsStore.instance.load();
   }
 
+  void _closeProposals() {
+    if (_proposalsFilter != null) {
+      _goToTab(3); // voltou de Serviços Ativos
+    } else {
+      _goToTab(0); // voltou do Menu
+    }
+  }
+
   Future<void> _logout() async {
     await AuthService.instance.logout();
     ClientRequestsStore.instance.clear();
@@ -155,6 +163,7 @@ class _ClientShellState extends State<ClientShell> {
                 ClientProposalsScreen(
                   key: ValueKey(_proposalsFilter?.id ?? 'all'),
                   request: _proposalsFilter,
+                  onBack: _closeProposals,
                 ),
                 _profilePage,
               ],

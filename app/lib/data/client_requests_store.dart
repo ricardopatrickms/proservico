@@ -76,23 +76,10 @@ class ClientRequestsStore extends ChangeNotifier {
   }
 
   Future<ServiceRequest> update(
-    String id, {
-    required String category,
-    required String description,
-    required String address,
-    required String city,
-    required String state,
-    required String cep,
-  }) async {
-    final updated = await _service.update(
-      id,
-      category: category,
-      description: description,
-      address: address,
-      city: city,
-      state: state,
-      cep: cep,
-    );
+    String id,
+    CreateServiceRequestInput input,
+  ) async {
+    final updated = await _service.update(id, input);
     final index = requests.indexWhere((r) => r.id == updated.id);
     if (index >= 0) {
       final next = [...requests];

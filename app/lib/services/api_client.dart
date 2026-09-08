@@ -150,6 +150,7 @@ class ApiClient {
     String path, {
     required Map<String, String> fields,
     Map<String, String> files = const {},
+    Map<String, List<String>> fileLists = const {},
     bool auth = false,
   }) async {
     final request = http.MultipartRequest('POST', _uri(path));
@@ -161,6 +162,13 @@ class ApiClient {
     request.fields.addAll({...fields, '_method': 'PUT'});
     for (final entry in files.entries) {
       request.files.add(await http.MultipartFile.fromPath(entry.key, entry.value));
+    }
+    for (final entry in fileLists.entries) {
+      for (final filePath in entry.value) {
+        request.files.add(
+          await http.MultipartFile.fromPath('${entry.key}[]', filePath),
+        );
+      }
     }
 
     final response = await _send(() async {

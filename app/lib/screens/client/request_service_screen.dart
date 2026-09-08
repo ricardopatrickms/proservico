@@ -37,6 +37,7 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
   final _descriptionKey = GlobalKey();
   final _photosKey = GlobalKey();
   final _addressKey = GlobalKey();
+  final _numberKey = GlobalKey();
   final _cityKey = GlobalKey();
   final _stateKey = GlobalKey();
   final _cepKey = GlobalKey();
@@ -48,6 +49,7 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _addressController = TextEditingController();
+  final _numberController = TextEditingController();
   final _cityController = TextEditingController();
   final _stateController = TextEditingController();
   final _cepController = TextEditingController();
@@ -87,6 +89,7 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
     _titleController.dispose();
     _descriptionController.dispose();
     _addressController.dispose();
+    _numberController.dispose();
     _cityController.dispose();
     _stateController.dispose();
     _cepController.dispose();
@@ -167,6 +170,7 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
       'description': 'Informe a descrição',
       'location': 'Informe o endereço completo',
       'address': 'Informe o endereço',
+      'number': 'Informe o número',
       'city': 'Informe a cidade',
       'state': 'Informe a UF (2 letras)',
       'cep': 'Informe um CEP válido',
@@ -214,6 +218,7 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
     if (_descriptionController.text.trim().isEmpty) missing.add('Descrição');
     if (!photosOk) missing.add('Fotos (mínimo 2)');
     if (_addressController.text.trim().isEmpty) missing.add('Endereço');
+    if (_numberController.text.trim().isEmpty) missing.add('Número');
     if (_cityController.text.trim().isEmpty) missing.add('Cidade');
     if (_stateController.text.trim().length != 2) missing.add('Estado (UF)');
     if (CepInputFormatter.digitsOnly(_cepController.text).length != 8) {
@@ -293,6 +298,8 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
           _apiError('address') != null ||
           _apiError('location') != null)
         _addressKey,
+      if (_numberController.text.trim().isEmpty || _apiError('number') != null)
+        _numberKey,
       if (_cityController.text.trim().isEmpty || _apiError('city') != null)
         _cityKey,
       if (_stateController.text.trim().length != 2 || _apiError('state') != null)
@@ -479,6 +486,7 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
           category: _category!,
           description: _descriptionController.text.trim(),
           address: _addressController.text.trim(),
+          number: _numberController.text.trim(),
           city: _cityController.text.trim(),
           state: _stateController.text.trim().toUpperCase(),
           cep: _cepController.text.trim(),
@@ -549,6 +557,7 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
     _titleController.clear();
     _descriptionController.clear();
     _addressController.clear();
+    _numberController.clear();
     _cityController.clear();
     _stateController.clear();
     _cepController.clear();
@@ -650,6 +659,10 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
           _addressController.text = resolved.address;
           _clearApi('address');
           _clearApi('location');
+        }
+        if (resolved.number.isNotEmpty) {
+          _numberController.text = resolved.number;
+          _clearApi('number');
         }
         if (resolved.city.isNotEmpty) {
           _cityController.text = resolved.city;
@@ -1034,23 +1047,54 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _label('Endereço Completo'),
-                      TextFormField(
-                        autovalidateMode: _fieldValidateMode,
-                        controller: _addressController,
-                        decoration: const InputDecoration(
-                          hintText: 'Rua, número e bairro',
-                        ),
-                        onChanged: (_) {
-                          _clearApi('address');
-                          _clearApi('location');
-                        },
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) {
-                            return 'Informe o endereço';
-                          }
-                          return _apiError('address') ?? _apiError('location');
-                        },
+                      _label('Endereço'),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: TextFormField(
+                              autovalidateMode: _fieldValidateMode,
+                              controller: _addressController,
+                              textCapitalization: TextCapitalization.sentences,
+                              decoration: const InputDecoration(
+                                hintText: 'Rua e bairro',
+                              ),
+                              onChanged: (_) {
+                                _clearApi('address');
+                                _clearApi('location');
+                              },
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) {
+                                  return 'Informe o endereço';
+                                }
+                                return _apiError('address') ??
+                                    _apiError('location');
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: KeyedSubtree(
+                              key: _numberKey,
+                              child: TextFormField(
+                                autovalidateMode: _fieldValidateMode,
+                                controller: _numberController,
+                                textCapitalization: TextCapitalization.characters,
+                                decoration: const InputDecoration(
+                                  hintText: 'Nº',
+                                ),
+                                onChanged: (_) => _clearApi('number'),
+                                validator: (v) {
+                                  if (v == null || v.trim().isEmpty) {
+                                    return 'Informe o nº';
+                                  }
+                                  return _apiError('number');
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

@@ -47,6 +47,8 @@ app.*.map.json
 # Environment local overrides (opcional — o app carrega `.env` dos assets)
 .env.local
 
+.env
+
 # FVM
 .fvm/flutter_sdk
 .fvm/versions

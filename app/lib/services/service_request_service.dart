@@ -6,6 +6,7 @@ class CreateServiceRequestInput {
   final String category;
   final String description;
   final String address;
+  final String number;
   final String city;
   final String state;
   final String cep;
@@ -23,12 +24,15 @@ class CreateServiceRequestInput {
   final bool prefersGoodRatings;
   final GenderPreference genderPreference;
   final List<String> photoPaths;
+  /// Paths já salvos no storage que devem permanecer (edição).
+  final List<String> keepPhotoPaths;
 
   const CreateServiceRequestInput({
     required this.title,
     required this.category,
     required this.description,
     required this.address,
+    required this.number,
     required this.city,
     required this.state,
     required this.cep,
@@ -46,6 +50,7 @@ class CreateServiceRequestInput {
     required this.prefersGoodRatings,
     required this.genderPreference,
     required this.photoPaths,
+    this.keepPhotoPaths = const [],
   });
 
   Map<String, String> toMultipartFields() {
@@ -56,8 +61,13 @@ class CreateServiceRequestInput {
       preferredPeriod.startHour,
     );
 
+    final street = [
+      address.trim(),
+      if (number.trim().isNotEmpty) number.trim(),
+    ].where((e) => e.isNotEmpty).join(', ');
+
     final location = [
-      address,
+      street,
       city,
       state,
       cep,
@@ -78,12 +88,13 @@ class CreateServiceRequestInput {
         'Materiais: ${materialsDetails!.trim()}',
     ].join(' | ');
 
-    return {
+    final fields = <String, String>{
       'title': title,
       'category': category,
       'description': description,
       'location': location,
       'address': address,
+      'number': number,
       'city': city,
       'state': state,
       'cep': cep,
@@ -107,6 +118,18 @@ class CreateServiceRequestInput {
       'prefers_good_ratings': prefersGoodRatings ? '1' : '0',
       'gender_preference': genderPreference.apiValue,
     };
+
+    for (var i = 0; i < keepPhotoPaths.length; i++) {
+      fields['keep_photos[$i]'] = keepPhotoPaths[i];
+    }
+    if (keepPhotoPaths.isEmpty && photoPaths.isNotEmpty) {
+      // Sinaliza edição de fotos mesmo sem mantidas (só novas).
+      fields['photos_edited'] = '1';
+    } else if (keepPhotoPaths.isNotEmpty || photoPaths.isNotEmpty) {
+      fields['photos_edited'] = '1';
+    }
+
+    return fields;
   }
 }
 
@@ -137,25 +160,18 @@ class ServiceRequestService {
   }
 
   Future<ServiceRequest> update(
-    String id, {
-    required String category,
-    required String description,
-    required String address,
-    required String city,
-    required String state,
-    required String cep,
-  }) async {
-    final data = await _api.put(
+    String id,
+    CreateServiceRequestInput input,
+  ) async {
+    final data = await _api.putMultipart(
       '/service-requests/$id',
       auth: true,
-      body: {
-        'category': category,
-        'description': description,
-        'address': address,
-        'city': city,
-        'state': state,
-        'cep': cep,
-      },
+      fields: input.toMultipartFields(),
+      fileLists: input.photoPaths.isEmpty
+          ? const {}
+          : {
+              'photos': input.photoPaths,
+            },
     );
     return ServiceRequest.fromJson(data);
   }

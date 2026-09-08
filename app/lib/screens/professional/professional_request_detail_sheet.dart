@@ -261,8 +261,8 @@ class ProfessionalRequestDetailSheet extends StatelessWidget {
                     children: [
                       _LabeledValue(
                         label: 'Endereço',
-                        value: (request.address?.trim().isNotEmpty == true)
-                            ? request.address!
+                        value: request.addressWithNumber.trim().isNotEmpty
+                            ? request.addressWithNumber
                             : '—',
                       ),
                       const SizedBox(height: 10),

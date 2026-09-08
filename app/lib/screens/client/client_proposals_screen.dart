@@ -12,7 +12,10 @@ class ClientProposalsScreen extends StatefulWidget {
   /// Se informado, foca nesta solicitação; senão lista todas com propostas.
   final ServiceRequest? request;
 
-  const ClientProposalsScreen({super.key, this.request});
+  /// Quando a tela está embutida no shell (sem rota na pilha).
+  final VoidCallback? onBack;
+
+  const ClientProposalsScreen({super.key, this.request, this.onBack});
 
   @override
   State<ClientProposalsScreen> createState() => _ClientProposalsScreenState();
@@ -113,6 +116,8 @@ class _ClientProposalsScreenState extends State<ClientProposalsScreen> {
   @override
   Widget build(BuildContext context) {
     final items = _items;
+    final canPop = Navigator.of(context).canPop();
+    final showBack = widget.onBack != null || canPop;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -120,6 +125,19 @@ class _ClientProposalsScreenState extends State<ClientProposalsScreen> {
         title: const Text('Propostas Recebidas'),
         backgroundColor: AppColors.surface,
         automaticallyImplyLeading: false,
+        leading: showBack
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Voltar',
+                onPressed: () {
+                  if (widget.onBack != null) {
+                    widget.onBack!();
+                  } else {
+                    Navigator.of(context).pop();
+                  }
+                },
+              )
+            : null,
       ),
       body: Stack(
         children: [
@@ -468,10 +486,10 @@ class _ProposalCard extends StatelessWidget {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.credit_card, size: 16, color: Colors.white),
+                              Icon(Icons.check, size: 16, color: Colors.white),
                               SizedBox(width: 6),
                               Text(
-                                'Aceitar e Pagar',
+                                'Aceitar',
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w700,
