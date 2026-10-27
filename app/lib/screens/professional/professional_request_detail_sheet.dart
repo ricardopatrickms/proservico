@@ -4,23 +4,39 @@ import 'package:intl/intl.dart';
 import '../../config/api_config.dart';
 import '../../models/service_request.dart';
 import '../../theme/app_theme.dart';
+import 'send_proposal_sheet.dart';
 
-Future<void> showProfessionalRequestDetail(
+/// Retorna `true` quando o profissional enviou uma proposta a partir do detalhe.
+Future<bool?> showProfessionalRequestDetail(
   BuildContext context,
-  ServiceRequest request,
-) {
-  return showModalBottomSheet<void>(
+  ServiceRequest request, {
+  bool canSendProposal = false,
+}) {
+  return showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (context) => ProfessionalRequestDetailSheet(request: request),
+    builder: (context) => ProfessionalRequestDetailSheet(
+      request: request,
+      canSendProposal: canSendProposal,
+    ),
   );
 }
 
 class ProfessionalRequestDetailSheet extends StatelessWidget {
   final ServiceRequest request;
+  final bool canSendProposal;
 
-  const ProfessionalRequestDetailSheet({super.key, required this.request});
+  const ProfessionalRequestDetailSheet({
+    super.key,
+    required this.request,
+    this.canSendProposal = false,
+  });
+
+  Future<void> _sendProposal(BuildContext context) async {
+    final sent = await sendProposal(context, request);
+    if (sent && context.mounted) Navigator.pop(context, true);
+  }
 
   String get _urgencyLabel {
     return switch (request.urgency) {
@@ -66,19 +82,10 @@ class ProfessionalRequestDetailSheet extends StatelessWidget {
     return request.location;
   }
 
-  String? get _budgetLabel {
-    if (request.budgetMin != null && request.budgetMax != null) {
-      return '${_money(request.budgetMin!)} - ${_money(request.budgetMax!)}';
-    }
-    if (request.budgetMax != null) return _money(request.budgetMax!);
-    if (request.budgetMin != null) return _money(request.budgetMin!);
-    if (request.budget != null) return _money(request.budget!);
-    return null;
-  }
-
-  static String _money(double v) {
-    return NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$').format(v);
-  }
+  /// A API omite rua/número para profissional ainda não contratado.
+  bool get _hasStreetAddress =>
+      (request.address?.trim().isNotEmpty ?? false) ||
+      (request.number?.trim().isNotEmpty ?? false);
 
   String get _dateLabel {
     return DateFormat('dd/MM/yyyy', 'pt_BR').format(request.scheduledAt);
@@ -259,13 +266,13 @@ class ProfessionalRequestDetailSheet extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _LabeledValue(
-                        label: 'Endereço',
-                        value: request.addressWithNumber.trim().isNotEmpty
-                            ? request.addressWithNumber
-                            : '—',
-                      ),
-                      const SizedBox(height: 10),
+                      if (_hasStreetAddress) ...[
+                        _LabeledValue(
+                          label: 'Endereço',
+                          value: request.addressWithNumber,
+                        ),
+                        const SizedBox(height: 10),
+                      ],
                       _LabeledValue(label: 'Cidade', value: _cityState),
                       if (request.referencePoint != null &&
                           request.referencePoint!.trim().isNotEmpty) ...[
@@ -320,52 +327,6 @@ class ProfessionalRequestDetailSheet extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (_budgetLabel != null) ...[
-                  const SizedBox(height: 20),
-                  const _SectionTitle(
-                    icon: Icons.attach_money,
-                    title: 'Faixa de Preço',
-                  ),
-                  const SizedBox(height: 8),
-                  _Box(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _budgetLabel!,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        if (request.acceptsNegotiation) ...[
-                          const SizedBox(height: 8),
-                          const Row(
-                            children: [
-                              Icon(
-                                Icons.chat_bubble_outline,
-                                size: 15,
-                                color: AppColors.success,
-                              ),
-                              SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  'Cliente aberto a negociação',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.success,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
                 const SizedBox(height: 20),
                 const _SectionTitle(
                   icon: Icons.inventory_2_outlined,
@@ -412,6 +373,36 @@ class ProfessionalRequestDetailSheet extends StatelessWidget {
               ],
             ),
           ),
+          if (canSendProposal)
+            SafeArea(
+              top: false,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                decoration: const BoxDecoration(
+                  color: AppColors.surface,
+                  border: Border(top: BorderSide(color: AppColors.border)),
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _sendProposal(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.navy,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    icon: const Icon(Icons.send_outlined, size: 18),
+                    label: const Text(
+                      'Enviar Proposta',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

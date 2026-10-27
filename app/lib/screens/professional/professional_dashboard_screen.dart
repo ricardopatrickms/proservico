@@ -217,7 +217,15 @@ class _ProfessionalDashboardScreenState
 
   Future<void> _openRequest(ServiceRequest request) async {
     if (request.status == ServiceStatus.pending) {
-      await showProfessionalRequestDetail(context, request);
+      final userId = _userId;
+      final alreadySent = userId != null &&
+          request.proposals.any((p) => p.professionalId == userId);
+      final sent = await showProfessionalRequestDetail(
+        context,
+        request,
+        canSendProposal: !alreadySent,
+      );
+      if (sent == true && mounted) await _load();
       return;
     }
     if (!mounted) return;

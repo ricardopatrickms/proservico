@@ -304,37 +304,67 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
   Future<void> _changePassword() async {
     final passCtrl = TextEditingController();
     final confirmCtrl = TextEditingController();
+    var obscurePassword = true;
+    var obscureConfirm = true;
 
     final ok = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Alterar Senha'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: passCtrl,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Nova senha'),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Alterar Senha'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: passCtrl,
+                obscureText: obscurePassword,
+                decoration: InputDecoration(
+                  labelText: 'Nova senha',
+                  suffixIcon: IconButton(
+                    onPressed: () => setDialogState(
+                      () => obscurePassword = !obscurePassword,
+                    ),
+                    icon: Icon(
+                      obscurePassword
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: confirmCtrl,
+                obscureText: obscureConfirm,
+                decoration: InputDecoration(
+                  labelText: 'Confirmar senha',
+                  suffixIcon: IconButton(
+                    onPressed: () => setDialogState(
+                      () => obscureConfirm = !obscureConfirm,
+                    ),
+                    icon: Icon(
+                      obscureConfirm
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: confirmCtrl,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Confirmar senha'),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Salvar'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Salvar'),
-          ),
-        ],
       ),
     );
 

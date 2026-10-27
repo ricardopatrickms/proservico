@@ -511,23 +511,25 @@ class _ProposalPreview extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              proposal.message,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.textPrimary,
-                height: 1.35,
+          if (proposal.message.trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                proposal.message,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textPrimary,
+                  height: 1.35,
+                ),
               ),
             ),
-          ),
+          ],
           const SizedBox(height: 8),
           Text(
             'Enviada em $when',
@@ -768,32 +770,34 @@ class _ServiceProposalsDialog extends StatelessWidget {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Mensagem do profissional:',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: AppColors.background,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            proposal.message,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              height: 1.35,
-                              color: AppColors.textPrimary,
+                        if (proposal.message.trim().isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Mensagem do profissional:',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textSecondary,
                             ),
                           ),
-                        ),
+                          const SizedBox(height: 6),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.background,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              proposal.message,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                height: 1.35,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 10),
                         Text(
                           'Enviada em $when',

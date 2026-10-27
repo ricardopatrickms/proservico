@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
+use Tymon\JWTAuth\Exceptions\JWTException;
 
 class AuthController extends Controller
 {
@@ -248,10 +249,28 @@ class AuthController extends Controller
 
     public function refresh(): JsonResponse
     {
-        $token = Auth::guard('api')->refresh();
+        $guard = Auth::guard('api');
 
-        /** @var User $user */
-        $user = Auth::guard('api')->user();
+        try {
+            $token = $guard->refresh();
+        } catch (JWTException) {
+            return response()->json(['message' => 'Token expirado. Faça login novamente.'], 401);
+        }
+
+        $user = $guard->setToken($token)->user();
+
+        if (! $user instanceof User) {
+            return response()->json(['message' => 'Token inválido. Faça login novamente.'], 401);
+        }
+
+        if (! $user->isAdmin() && $user->isBlockedFromAccess()) {
+            $guard->invalidate();
+
+            return response()->json([
+                'message' => $user->accessDeniedMessage(),
+                'error' => 'account_inactive',
+            ], 403);
+        }
 
         return $this->respondWithToken($token, $user->load('professionalProfile'));
     }

@@ -44,6 +44,12 @@ class SessionStore {
     await prefs.setString(_userKey, jsonEncode(user.toCacheJson()));
   }
 
+  Future<void> updateToken(String token) async {
+    accessToken = token;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_tokenKey, token);
+  }
+
   Future<void> clear() async {
     accessToken = null;
     currentUser = null;

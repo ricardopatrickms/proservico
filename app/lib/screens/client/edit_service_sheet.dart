@@ -14,7 +14,6 @@ import '../../services/cep_service.dart';
 import '../../services/service_request_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/cep_input_formatter.dart';
-import '../../widgets/currency_input_formatter.dart';
 import '../../widgets/helpers.dart';
 import '../../widgets/service_category_picker.dart';
 
@@ -39,14 +38,11 @@ class _EditServiceSheetState extends State<EditServiceSheet> {
   late final TextEditingController _stateController;
   late final TextEditingController _cepController;
   late final TextEditingController _referenceController;
-  late final TextEditingController _budgetMinController;
-  late final TextEditingController _budgetMaxController;
   late final TextEditingController _materialsDetailsController;
 
   String? _category;
   DateTime? _preferredDate;
   PreferredPeriod? _period;
-  bool _acceptsNegotiation = true;
   String? _materialsResponsible;
   ServiceUrgency _urgency = ServiceUrgency.normal;
   bool _prefersGoodRatings = true;
@@ -88,10 +84,6 @@ class _EditServiceSheetState extends State<EditServiceSheet> {
     _cepController = TextEditingController(text: r.cep?.trim() ?? '');
     _referenceController =
         TextEditingController(text: r.referencePoint?.trim() ?? '');
-    _budgetMinController =
-        TextEditingController(text: _budgetText(r.budgetMin));
-    _budgetMaxController =
-        TextEditingController(text: _budgetText(r.budgetMax ?? r.budget));
     _materialsDetailsController =
         TextEditingController(text: r.materialsDetails?.trim() ?? '');
 
@@ -103,7 +95,6 @@ class _EditServiceSheetState extends State<EditServiceSheet> {
       r.scheduledAt.day,
     );
     _period = r.preferredPeriod ?? PreferredPeriod.business;
-    _acceptsNegotiation = r.acceptsNegotiation;
     _materialsResponsible = r.materialsResponsible;
     _urgency = r.urgency;
     _prefersGoodRatings = r.prefersGoodRatings ?? true;
@@ -143,12 +134,6 @@ class _EditServiceSheetState extends State<EditServiceSheet> {
     return ApiConfig.resolveStorageUrl(path);
   }
 
-  String _budgetText(double? value) {
-    if (value == null) return '';
-    final cents = (value * 100).round().toString();
-    return CurrencyInputFormatter.formatFromDigits(cents);
-  }
-
   @override
   void dispose() {
     _titleController.dispose();
@@ -159,8 +144,6 @@ class _EditServiceSheetState extends State<EditServiceSheet> {
     _stateController.dispose();
     _cepController.dispose();
     _referenceController.dispose();
-    _budgetMinController.dispose();
-    _budgetMaxController.dispose();
     _materialsDetailsController.dispose();
     super.dispose();
   }
@@ -318,13 +301,6 @@ class _EditServiceSheetState extends State<EditServiceSheet> {
       return;
     }
 
-    final budgetMin = CurrencyInputFormatter.parse(_budgetMinController.text);
-    final budgetMax = CurrencyInputFormatter.parse(_budgetMaxController.text);
-    if (budgetMin != null && budgetMax != null && budgetMin > budgetMax) {
-      showAppSnackBar(context, 'O valor mínimo não pode ser maior que o máximo');
-      return;
-    }
-
     final existingCount = _keptPaths.length + _newPhotos.length;
     if (existingCount < 2) {
       showAppSnackBar(
@@ -354,9 +330,9 @@ class _EditServiceSheetState extends State<EditServiceSheet> {
               : _referenceController.text.trim(),
           preferredDate: _preferredDate!,
           preferredPeriod: _period!,
-          budgetMin: budgetMin,
-          budgetMax: budgetMax,
-          acceptsNegotiation: _acceptsNegotiation,
+          budgetMin: widget.request.budgetMin,
+          budgetMax: widget.request.budgetMax,
+          acceptsNegotiation: widget.request.acceptsNegotiation,
           materialsResponsible: _materialsResponsible!,
           materialsDetails: _materialsDetailsController.text.trim().isEmpty
               ? null
@@ -827,74 +803,7 @@ class _EditServiceSheetState extends State<EditServiceSheet> {
                               }).toList(),
                             ),
 
-                            _sectionTitle('4. Qual seu orçamento?'),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      _label('Valor Mínimo (R\$)'),
-                                      TextFormField(
-                                        controller: _budgetMinController,
-                                        keyboardType: TextInputType.number,
-                                        inputFormatters: const [
-                                          CurrencyInputFormatter(),
-                                        ],
-                                        decoration: const InputDecoration(
-                                          hintText: '0,00',
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      _label('Valor Máximo (R\$)'),
-                                      TextFormField(
-                                        controller: _budgetMaxController,
-                                        keyboardType: TextInputType.number,
-                                        inputFormatters: const [
-                                          CurrencyInputFormatter(),
-                                        ],
-                                        decoration: const InputDecoration(
-                                          hintText: '0,00',
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 14),
-                            _label('Aceita negociação de preço?'),
-                            RadioListTile<bool>(
-                              contentPadding: EdgeInsets.zero,
-                              dense: true,
-                              title: const Text('Sim, aceito negociar'),
-                              value: true,
-                              groupValue: _acceptsNegotiation,
-                              onChanged: (v) => setState(
-                                () => _acceptsNegotiation = v ?? true,
-                              ),
-                            ),
-                            RadioListTile<bool>(
-                              contentPadding: EdgeInsets.zero,
-                              dense: true,
-                              title: const Text('Não, preço fixo'),
-                              value: false,
-                              groupValue: _acceptsNegotiation,
-                              onChanged: (v) => setState(
-                                () => _acceptsNegotiation = v ?? false,
-                              ),
-                            ),
-
-                            _sectionTitle('5. Sobre os materiais'),
+                            _sectionTitle('4. Sobre os materiais'),
                             _label('Quem será responsável pelos materiais?'),
                             DropdownButtonFormField<String>(
                               value: _materialsResponsible,
@@ -926,7 +835,7 @@ class _EditServiceSheetState extends State<EditServiceSheet> {
                               ),
                             ),
 
-                            _sectionTitle('6. Qual a urgência?'),
+                            _sectionTitle('5. Qual a urgência?'),
                             ...ServiceUrgency.values.map((u) {
                               final selected = _urgency == u;
                               final (title, subtitle, icon) = switch (u) {
@@ -999,7 +908,7 @@ class _EditServiceSheetState extends State<EditServiceSheet> {
                               );
                             }),
 
-                            _sectionTitle('7. Suas preferências'),
+                            _sectionTitle('6. Suas preferências'),
                             _label(
                               'Prefere profissional com boas avaliações?',
                             ),

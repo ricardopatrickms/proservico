@@ -2,15 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/service_request.dart';
-import '../../models/user.dart';
 import '../../services/api_exception.dart';
 import '../../services/session_store.dart';
-import '../../services/service_proposal_service.dart';
 import '../../services/service_request_service.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/helpers.dart';
 import 'professional_placeholder_screen.dart';
 import 'professional_request_detail_sheet.dart';
+import 'send_proposal_sheet.dart';
 
 class ProfessionalReceivedScreen extends StatefulWidget {
   const ProfessionalReceivedScreen({super.key});
@@ -221,7 +219,7 @@ class _ProfessionalReceivedScreenState
                     ),
                     scheduledLabel: _shortDate(request.scheduledAt),
                     proposalSent: _hasSentProposal(request),
-                    onDetails: () => showProfessionalRequestDetail(context, request),
+                    onDetails: () => _openDetails(request),
                     onPropose: () => _openProposeSheet(request),
                   ),
                 ),
@@ -234,44 +232,23 @@ class _ProfessionalReceivedScreenState
 
   Future<void> _openProposeSheet(ServiceRequest request) async {
     if (_hasSentProposal(request)) return;
+    final sent = await sendProposal(context, request);
+    if (sent) await _onProposalSent(request);
+  }
 
-    final user = SessionStore.instance.currentUser;
-    if (user == null || user.type != AccountType.professional) {
-      showAppSnackBar(
-        context,
-        'É preciso estar logado como profissional para enviar propostas.',
-      );
-      return;
-    }
-
-    final result = await showModalBottomSheet<_ProposeResult>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _ProposeBottomSheet(request: request),
+  Future<void> _openDetails(ServiceRequest request) async {
+    final sent = await showProfessionalRequestDetail(
+      context,
+      request,
+      canSendProposal: !_hasSentProposal(request),
     );
-    if (!mounted || result == null) return;
+    if (sent == true) await _onProposalSent(request);
+  }
 
-    try {
-      await ServiceProposalService.instance.create(
-        serviceRequestId: request.id,
-        amount: result.value,
-        message: result.message,
-      );
-      if (!mounted) return;
-      setState(() => _sentProposalIds.add(request.id));
-      showAppSnackBar(
-        context,
-        'Proposta de ${formatCurrency(result.value)} enviada.',
-      );
-      await _load(showSpinner: false);
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      showAppSnackBar(context, e.displayMessage);
-    } catch (_) {
-      if (!mounted) return;
-      showAppSnackBar(context, 'Não foi possível enviar a proposta.');
-    }
+  Future<void> _onProposalSent(ServiceRequest request) async {
+    if (!mounted) return;
+    setState(() => _sentProposalIds.add(request.id));
+    await _load(showSpinner: false);
   }
 }
 
@@ -438,7 +415,6 @@ class _ReceivedCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final urgency = _urgencyStyle;
-    final budget = request.budgetRangeLabel;
 
     return Container(
       width: double.infinity,
@@ -511,11 +487,6 @@ class _ReceivedCard extends StatelessWidget {
                 icon: Icons.calendar_today_outlined,
                 text: scheduledLabel,
               ),
-              if (budget != null)
-                _Meta(
-                  icon: Icons.attach_money,
-                  text: budget,
-                ),
             ],
           ),
           const SizedBox(height: 16),
@@ -678,288 +649,6 @@ class _Meta extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _ProposeResult {
-  final double value;
-  final String message;
-
-  const _ProposeResult({required this.value, required this.message});
-}
-
-class _ProposeBottomSheet extends StatefulWidget {
-  final ServiceRequest request;
-
-  const _ProposeBottomSheet({required this.request});
-
-  @override
-  State<_ProposeBottomSheet> createState() => _ProposeBottomSheetState();
-}
-
-class _ProposeBottomSheetState extends State<_ProposeBottomSheet> {
-  final _formKey = GlobalKey<FormState>();
-  final _valueController = TextEditingController();
-  final _messageController = TextEditingController();
-  bool _submitting = false;
-
-  @override
-  void dispose() {
-    _valueController.dispose();
-    _messageController.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    if (!_formKey.currentState!.validate() || _submitting) return;
-    final raw = _valueController.text.trim().replaceAll('.', '').replaceAll(',', '.');
-    final value = double.tryParse(raw);
-    if (value == null) return;
-
-    setState(() => _submitting = true);
-    Navigator.of(context).pop(
-      _ProposeResult(
-        value: value,
-        message: _messageController.text.trim(),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bottom = MediaQuery.viewInsetsOf(context).bottom;
-    final request = widget.request;
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottom),
-      child: Container(
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: AppColors.border,
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Enviar Proposta',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    request.title,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  if (request.budgetRangeLabel != null) ...[
-                    const SizedBox(height: 14),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppColors.background,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.border),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Faixa de preço do cliente',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.attach_money,
-                                size: 18,
-                                color: AppColors.primary,
-                              ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  request.budgetRangeLabel!,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (request.budgetMin != null ||
-                              request.budgetMax != null) ...[
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                if (request.budgetMin != null)
-                                  Expanded(
-                                    child: Text(
-                                      'Mín: ${formatCurrency(request.budgetMin!)}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                    ),
-                                  ),
-                                if (request.budgetMax != null)
-                                  Expanded(
-                                    child: Text(
-                                      'Máx: ${formatCurrency(request.budgetMax!)}',
-                                      textAlign: request.budgetMin != null
-                                          ? TextAlign.end
-                                          : TextAlign.start,
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ],
-                          if (request.acceptsNegotiation) ...[
-                            const SizedBox(height: 8),
-                            const Text(
-                              'Cliente aberto a negociação',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.success,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Valor Proposto (R\$) *',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _valueController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      hintText: 'Ex: 150,00',
-                      prefixText: 'R\$ ',
-                    ),
-                    validator: (v) {
-                      final raw = (v ?? '')
-                          .trim()
-                          .replaceAll('.', '')
-                          .replaceAll(',', '.');
-                      final value = double.tryParse(raw);
-                      if (value == null || value <= 0) {
-                        return 'Informe um valor válido';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Mensagem para o cliente *',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _messageController,
-                    minLines: 4,
-                    maxLines: 6,
-                    decoration: const InputDecoration(
-                      hintText:
-                          'Descreva sua proposta, prazo e condições...',
-                      alignLabelWithHint: true,
-                    ),
-                    validator: (v) {
-                      if (v == null || v.trim().length < 10) {
-                        return 'Escreva uma mensagem com pelo menos 10 caracteres';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 20),
-                  Material(
-                    color: AppColors.navy,
-                    borderRadius: BorderRadius.circular(12),
-                    child: InkWell(
-                      onTap: _submitting ? null : _submit,
-                      borderRadius: BorderRadius.circular(12),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        child: Center(
-                          child: Text(
-                            _submitting ? 'Enviando...' : 'Enviar Proposta',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  OutlinedButton(
-                    onPressed: _submitting
-                        ? null
-                        : () => Navigator.of(context).pop(),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.textSecondary,
-                      side: const BorderSide(color: AppColors.border),
-                      minimumSize: const Size.fromHeight(48),
-                    ),
-                    child: const Text('Cancelar'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

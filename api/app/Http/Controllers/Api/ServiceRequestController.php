@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ServiceRequest;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -43,6 +44,7 @@ class ServiceRequestController extends Controller
 
                     return $user->servesCity($request->city);
                 })
+                ->map(fn (ServiceRequest $request) => $this->presentFor($user, $request))
                 ->values();
         }
 
@@ -127,11 +129,15 @@ class ServiceRequestController extends Controller
     {
         $this->authorizeView($serviceRequest);
 
-        return response()->json($serviceRequest->load([
+        $serviceRequest->load([
             'client',
             'professional',
             'proposals.professional:id,name,email,phone',
-        ]));
+        ]);
+
+        return response()->json(
+            $this->presentFor(Auth::guard('api')->user(), $serviceRequest)
+        );
     }
 
     public function update(Request $request, ServiceRequest $serviceRequest): JsonResponse
@@ -307,6 +313,52 @@ class ServiceRequestController extends Controller
         }
 
         abort(403, 'Acesso negado');
+    }
+
+    /**
+     * Profissional só vê endereço completo e contato do cliente depois de contratado,
+     * e nunca vê propostas de outros profissionais.
+     */
+    protected function presentFor(User $user, ServiceRequest $serviceRequest): ServiceRequest
+    {
+        if (! $user->isProfessional()) {
+            return $serviceRequest;
+        }
+
+        if ($serviceRequest->relationLoaded('proposals')) {
+            $serviceRequest->setRelation(
+                'proposals',
+                $serviceRequest->proposals
+                    ->where('professional_id', $user->id)
+                    ->values()
+            );
+        }
+
+        if ((int) $serviceRequest->professional_id === (int) $user->id) {
+            return $serviceRequest;
+        }
+
+        $serviceRequest->makeHidden([
+            'address',
+            'number',
+            'cep',
+            'latitude',
+            'longitude',
+            'reference_point',
+        ]);
+        $serviceRequest->setAttribute(
+            'location',
+            collect([$serviceRequest->city, $serviceRequest->state])
+                ->map(fn ($v) => trim((string) $v))
+                ->filter()
+                ->implode(' - ')
+        );
+
+        if ($serviceRequest->relationLoaded('client') && $serviceRequest->client) {
+            $serviceRequest->client->setVisible(['id', 'name']);
+        }
+
+        return $serviceRequest;
     }
 
     protected function composeLocation(

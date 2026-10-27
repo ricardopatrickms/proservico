@@ -17,12 +17,13 @@ Route::prefix('auth')->group(function () {
     Route::post('login', [AuthController::class, 'login']);
     Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('reset-password', [AuthController::class, 'resetPassword']);
+    // Fora do auth:api: precisa aceitar token já expirado (dentro do JWT_REFRESH_TTL).
+    Route::post('refresh', [AuthController::class, 'refresh']);
 
     Route::middleware(['auth:api', 'account.active'])->group(function () {
         Route::get('me', [AuthController::class, 'me']);
         Route::put('profile', [AuthController::class, 'updateProfile']);
         Route::post('logout', [AuthController::class, 'logout']);
-        Route::post('refresh', [AuthController::class, 'refresh']);
     });
 });
 

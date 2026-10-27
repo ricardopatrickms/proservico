@@ -14,7 +14,6 @@ import '../../services/cep_service.dart';
 import '../../services/service_request_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/cep_input_formatter.dart';
-import '../../widgets/currency_input_formatter.dart';
 import '../../widgets/helpers.dart';
 import '../../widgets/service_category_picker.dart';
 import '../professional/professional_request_detail_sheet.dart';
@@ -43,7 +42,6 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
   final _cepKey = GlobalKey();
   final _dateKey = GlobalKey();
   final _periodKey = GlobalKey();
-  final _budgetKey = GlobalKey();
   final _materialsKey = GlobalKey();
 
   final _titleController = TextEditingController();
@@ -54,14 +52,11 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
   final _stateController = TextEditingController();
   final _cepController = TextEditingController();
   final _referenceController = TextEditingController();
-  final _budgetMinController = TextEditingController();
-  final _budgetMaxController = TextEditingController();
   final _materialsDetailsController = TextEditingController();
 
   String? _category;
   DateTime? _preferredDate;
   PreferredPeriod? _period;
-  bool _acceptsNegotiation = true;
   String? _materialsResponsible;
   ServiceUrgency _urgency = ServiceUrgency.normal;
   bool _prefersGoodRatings = true;
@@ -94,8 +89,6 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
     _stateController.dispose();
     _cepController.dispose();
     _referenceController.dispose();
-    _budgetMinController.dispose();
-    _budgetMaxController.dispose();
     _materialsDetailsController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -137,17 +130,6 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
     return _apiError('preferred_period');
   }
 
-  String? get _budgetRangeError {
-    final min = _parseBudget(_budgetMinController.text);
-    final max = _parseBudget(_budgetMaxController.text);
-    if (min != null && max != null && min > max) {
-      return 'O valor mínimo não pode ser maior que o máximo';
-    }
-    return _apiError('budget') ?? _apiError('budget_min') ?? _apiError('budget_max');
-  }
-
-  double? _parseBudget(String raw) => CurrencyInputFormatter.parse(raw);
-
   Map<String, String> _mapApiErrors(ApiException e) {
     final errors = e.errors;
     if (errors == null || errors.isEmpty) return {};
@@ -178,9 +160,6 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
       'preferred_period': 'Selecione o período preferido',
       'materials_responsible': 'Selecione quem será responsável pelos materiais',
       'photos': 'Envie no mínimo 2 fotos (JPG, PNG ou WEBP, máx. 5 MB)',
-      'budget': 'Informe um orçamento válido',
-      'budget_min': 'Informe um valor mínimo válido',
-      'budget_max': 'Informe um valor máximo válido',
     };
     final lower = raw.toLowerCase();
     if (field == 'photos') {
@@ -207,7 +186,6 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
     required bool photosOk,
     required bool dateOk,
     required bool periodOk,
-    required bool budgetOk,
     required bool formOk,
   }) {
     final missing = <String>[];
@@ -226,7 +204,6 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
     }
     if (!dateOk) missing.add('Data preferida');
     if (!periodOk) missing.add('Período preferido');
-    if (!budgetOk) missing.add('Orçamento');
     if (_materialsResponsible == null) missing.add('Materiais');
     if (missing.isEmpty && !formOk) missing.add('Categoria');
     return missing;
@@ -259,7 +236,6 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
     required bool photosOk,
     required bool dateOk,
     required bool periodOk,
-    required bool budgetOk,
     bool formOk = true,
   }) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -269,7 +245,6 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
           photosOk: photosOk,
           dateOk: dateOk,
           periodOk: periodOk,
-          budgetOk: budgetOk,
           formOk: formOk,
         );
       });
@@ -280,7 +255,6 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
     required bool photosOk,
     required bool dateOk,
     required bool periodOk,
-    required bool budgetOk,
     bool formOk = true,
   }) async {
     final targets = <GlobalKey>[
@@ -309,11 +283,6 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
         _cepKey,
       if (!dateOk || _apiError('scheduled_at') != null) _dateKey,
       if (!periodOk || _apiError('preferred_period') != null) _periodKey,
-      if (!budgetOk ||
-          _apiError('budget') != null ||
-          _apiError('budget_min') != null ||
-          _apiError('budget_max') != null)
-        _budgetKey,
       if (_materialsResponsible == null ||
           _apiError('materials_responsible') != null)
         _materialsKey,
@@ -455,16 +424,12 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
     final photosOk = _photos.length >= 2;
     final dateOk = _preferredDate != null;
     final periodOk = _period != null;
-    final budgetMin = _parseBudget(_budgetMinController.text);
-    final budgetMax = _parseBudget(_budgetMaxController.text);
-    final budgetOk = budgetMin == null || budgetMax == null || budgetMin <= budgetMax;
 
-    if (!formOk || !photosOk || !dateOk || !periodOk || !budgetOk) {
+    if (!formOk || !photosOk || !dateOk || !periodOk) {
       final labels = _missingFieldLabels(
         photosOk: photosOk,
         dateOk: dateOk,
         periodOk: periodOk,
-        budgetOk: budgetOk,
         formOk: formOk,
       );
       _notifyMissingFields(_missingFieldsMessage(labels));
@@ -472,7 +437,6 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
         photosOk: photosOk,
         dateOk: dateOk,
         periodOk: periodOk,
-        budgetOk: budgetOk,
         formOk: formOk,
       );
       return;
@@ -497,9 +461,7 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
               : _referenceController.text.trim(),
           preferredDate: _preferredDate!,
           preferredPeriod: _period!,
-          budgetMin: budgetMin,
-          budgetMax: budgetMax,
-          acceptsNegotiation: _acceptsNegotiation,
+          acceptsNegotiation: true,
           materialsResponsible: _materialsResponsible!,
           materialsDetails: _materialsDetailsController.text.trim().isEmpty
               ? null
@@ -536,9 +498,6 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
           photosOk: _photos.length >= 2 && mapped['photos'] == null,
           dateOk: _preferredDate != null && mapped['scheduled_at'] == null,
           periodOk: _period != null && mapped['preferred_period'] == null,
-          budgetOk: mapped['budget'] == null &&
-              mapped['budget_min'] == null &&
-              mapped['budget_max'] == null,
           formOk: false,
         );
         return;
@@ -562,14 +521,11 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
     _stateController.clear();
     _cepController.clear();
     _referenceController.clear();
-    _budgetMinController.clear();
-    _budgetMaxController.clear();
     _materialsDetailsController.clear();
     setState(() {
       _category = null;
       _preferredDate = null;
       _period = null;
-      _acceptsNegotiation = true;
       _materialsResponsible = null;
       _urgency = ServiceUrgency.normal;
       _prefersGoodRatings = true;
@@ -1279,100 +1235,6 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
             ),
             _SectionCard(
               number: 4,
-              title: 'Qual seu orçamento?',
-              color: const Color(0xFF22C55E),
-              icon: Icons.payments_outlined,
-              children: [
-                Column(
-                  key: _budgetKey,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _label('Valor Mínimo (R\$)'),
-                              TextFormField(
-                                controller: _budgetMinController,
-                                autovalidateMode: _fieldValidateMode,
-                                keyboardType: TextInputType.number,
-                                inputFormatters: const [
-                                  CurrencyInputFormatter(),
-                                ],
-                                decoration: const InputDecoration(hintText: '0,00'),
-                                onChanged: (_) {
-                                  _clearApi('budget_min');
-                                  _clearApi('budget_max');
-                                  _clearApi('budget');
-                                  setState(() {});
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _label('Valor Máximo (R\$)'),
-                              TextFormField(
-                                controller: _budgetMaxController,
-                                autovalidateMode: _fieldValidateMode,
-                                keyboardType: TextInputType.number,
-                                inputFormatters: const [
-                                  CurrencyInputFormatter(),
-                                ],
-                                decoration: const InputDecoration(hintText: '0,00'),
-                                onChanged: (_) {
-                                  _clearApi('budget_min');
-                                  _clearApi('budget_max');
-                                  _clearApi('budget');
-                                  setState(() {});
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (_budgetRangeError != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6, left: 12),
-                        child: Text(
-                          _budgetRangeError!,
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.error,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                _label('Aceita negociação de preço?'),
-                RadioListTile<bool>(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  title: const Text('Sim, aceito negociar'),
-                  value: true,
-                  groupValue: _acceptsNegotiation,
-                  onChanged: (v) => setState(() => _acceptsNegotiation = v ?? true),
-                ),
-                RadioListTile<bool>(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  title: const Text('Não, preço fixo'),
-                  value: false,
-                  groupValue: _acceptsNegotiation,
-                  onChanged: (v) => setState(() => _acceptsNegotiation = v ?? false),
-                ),
-              ],
-            ),
-            _SectionCard(
-              number: 5,
               title: 'Sobre os materiais',
               color: const Color(0xFF8B5CF6),
               icon: Icons.inventory_2_outlined,
@@ -1415,7 +1277,7 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
               ],
             ),
             _SectionCard(
-              number: 6,
+              number: 5,
               title: 'Qual a urgência?',
               color: const Color(0xFFEF4444),
               icon: Icons.priority_high,
@@ -1444,7 +1306,7 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
               ],
             ),
             _SectionCard(
-              number: 7,
+              number: 6,
               title: 'Suas preferências',
               color: const Color(0xFF3B82F6),
               icon: Icons.tune,
@@ -1567,13 +1429,10 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
   }
 
   Widget _missingFieldsBanner() {
-    final min = _parseBudget(_budgetMinController.text);
-    final max = _parseBudget(_budgetMaxController.text);
     final labels = _missingFieldLabels(
       photosOk: _photos.length >= 2,
       dateOk: _preferredDate != null,
       periodOk: _period != null,
-      budgetOk: min == null || max == null || min <= max,
       formOk: _category != null && _category!.trim().isNotEmpty,
     );
     if (labels.isEmpty) return const SizedBox.shrink();

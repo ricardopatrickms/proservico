@@ -15,7 +15,10 @@ class ServiceProposalController extends Controller
     {
         $this->authorizeView($serviceRequest);
 
+        $user = Auth::guard('api')->user();
+
         $proposals = $serviceRequest->proposals()
+            ->when($user->isProfessional(), fn ($q) => $q->where('professional_id', $user->id))
             ->with('professional:id,name,email,phone')
             ->latest()
             ->get();
@@ -43,7 +46,7 @@ class ServiceProposalController extends Controller
 
         $data = $request->validate([
             'amount' => ['required', 'numeric', 'min:0.01'],
-            'message' => ['required', 'string', 'min:10', 'max:2000'],
+            'message' => ['nullable', 'string', 'max:2000'],
         ]);
 
         $proposal = ServiceProposal::updateOrCreate(
@@ -53,7 +56,7 @@ class ServiceProposalController extends Controller
             ],
             [
                 'amount' => $data['amount'],
-                'message' => $data['message'],
+                'message' => $data['message'] ?? '',
                 'status' => 'pending',
             ]
         );

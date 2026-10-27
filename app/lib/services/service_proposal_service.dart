@@ -10,14 +10,12 @@ class ServiceProposalService {
   Future<ServiceProposal> create({
     required String serviceRequestId,
     required double amount,
-    required String message,
   }) async {
     final data = await _api.post(
       '/service-requests/$serviceRequestId/proposals',
       auth: true,
       body: {
         'amount': amount,
-        'message': message,
       },
     );
     return ServiceProposal.fromJson(data);

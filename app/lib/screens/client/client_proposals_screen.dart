@@ -450,20 +450,22 @@ class _ProposalCard extends StatelessWidget {
             'Avaliação: Sem avaliações ainda',
             style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
-          const SizedBox(height: 10),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.border),
+          if (proposal.message.trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Text(
+                proposal.message,
+                style: const TextStyle(fontSize: 13, height: 1.35),
+              ),
             ),
-            child: Text(
-              proposal.message,
-              style: const TextStyle(fontSize: 13, height: 1.35),
-            ),
-          ),
+          ],
           const SizedBox(height: 8),
           Text(
             'Enviada em $sentAt',
