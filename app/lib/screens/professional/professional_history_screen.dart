@@ -54,6 +54,7 @@ class _ProfessionalHistoryScreenState extends State<ProfessionalHistoryScreen> {
         _requests = all
             .where(
               (r) =>
+                  r.status == ServiceStatus.awaitingPayment ||
                   r.status == ServiceStatus.inProgress ||
                   r.status == ServiceStatus.completed ||
                   r.status == ServiceStatus.cancelled,
@@ -115,6 +116,7 @@ class _ProfessionalHistoryScreenState extends State<ProfessionalHistoryScreen> {
   String _statusLabel(ServiceStatus status) {
     return switch (status) {
       ServiceStatus.pending => 'Aguardando',
+      ServiceStatus.awaitingPayment => 'Aguardando pagamento',
       ServiceStatus.inProgress => 'Em andamento',
       ServiceStatus.completed => 'Concluído',
       ServiceStatus.cancelled => 'Cancelado',
@@ -124,6 +126,7 @@ class _ProfessionalHistoryScreenState extends State<ProfessionalHistoryScreen> {
   Color _statusColor(ServiceStatus status) {
     return switch (status) {
       ServiceStatus.pending => AppColors.warning,
+      ServiceStatus.awaitingPayment => AppColors.warning,
       ServiceStatus.inProgress => AppColors.primary,
       ServiceStatus.completed => AppColors.success,
       ServiceStatus.cancelled => AppColors.danger,

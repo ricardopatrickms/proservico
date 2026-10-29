@@ -521,6 +521,7 @@ class _AdminServicesScreenState extends State<AdminServicesScreen> {
 
   String _statusLabel(ServiceStatus status) => switch (status) {
         ServiceStatus.pending => 'Pendente',
+        ServiceStatus.awaitingPayment => 'Aguardando pagamento',
         ServiceStatus.inProgress => 'Em andamento',
         ServiceStatus.completed => 'Concluído',
         ServiceStatus.cancelled => 'Cancelado',

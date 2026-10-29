@@ -1,6 +1,6 @@
 enum ServiceUrgency { normal, urgent, emergency }
 
-enum ServiceStatus { pending, inProgress, completed, cancelled }
+enum ServiceStatus { pending, awaitingPayment, inProgress, completed, cancelled }
 
 enum PreferredPeriod { morning, afternoon, evening, business }
 
@@ -184,6 +184,8 @@ class ServiceRequest {
 
 ServiceStatus serviceStatusFromApi(String? value) {
   switch (value) {
+    case 'awaiting_payment':
+      return ServiceStatus.awaitingPayment;
     case 'in_progress':
       return ServiceStatus.inProgress;
     case 'completed':
@@ -287,10 +289,15 @@ class ServiceProposal {
   final String serviceRequestId;
   final String professionalId;
   final String professionalName;
+  /// Valor exibido conforme o perfil (cliente: com taxa; profissional: proposto).
   final double amount;
+  final double? professionalAmount;
+  final double? platformFee;
+  final double? clientAmount;
   final String message;
   final ProposalStatus status;
   final DateTime createdAt;
+  final ServicePayment? payment;
 
   const ServiceProposal({
     required this.id,
@@ -298,13 +305,18 @@ class ServiceProposal {
     required this.professionalId,
     required this.professionalName,
     required this.amount,
+    this.professionalAmount,
+    this.platformFee,
+    this.clientAmount,
     required this.message,
     this.status = ProposalStatus.pending,
     required this.createdAt,
+    this.payment,
   });
 
   factory ServiceProposal.fromJson(Map<String, dynamic> json) {
     final professional = json['professional'];
+    final paymentJson = json['payment'];
     return ServiceProposal(
       id: json['id'].toString(),
       serviceRequestId: json['service_request_id']?.toString() ?? '',
@@ -314,10 +326,17 @@ class ServiceProposal {
           ? professional['name']?.toString() ?? 'Profissional'
           : json['professional_name']?.toString() ?? 'Profissional',
       amount: double.tryParse(json['amount']?.toString() ?? '') ?? 0,
+      professionalAmount:
+          double.tryParse(json['professional_amount']?.toString() ?? ''),
+      platformFee: double.tryParse(json['platform_fee']?.toString() ?? ''),
+      clientAmount: double.tryParse(json['client_amount']?.toString() ?? ''),
       message: json['message']?.toString() ?? '',
       status: proposalStatusFromApi(json['status']?.toString()),
       createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ??
           DateTime.now(),
+      payment: paymentJson is Map
+          ? ServicePayment.fromJson(Map<String, dynamic>.from(paymentJson))
+          : null,
     );
   }
 
@@ -327,6 +346,56 @@ class ServiceProposal {
         ProposalStatus.rejected => 'Recusada',
         ProposalStatus.withdrawn => 'Retirada',
       };
+}
+
+class ServicePayment {
+  final String id;
+  final String status;
+  final String billingType;
+  final double professionalAmount;
+  final double platformFee;
+  final double totalAmount;
+  final String? asaasPaymentId;
+  final String? asaasStatus;
+  final String? pixCopyPaste;
+  final String? pixQrCodeBase64;
+  final String? invoiceUrl;
+  final DateTime? paidAt;
+
+  const ServicePayment({
+    required this.id,
+    required this.status,
+    required this.billingType,
+    required this.professionalAmount,
+    required this.platformFee,
+    required this.totalAmount,
+    this.asaasPaymentId,
+    this.asaasStatus,
+    this.pixCopyPaste,
+    this.pixQrCodeBase64,
+    this.invoiceUrl,
+    this.paidAt,
+  });
+
+  factory ServicePayment.fromJson(Map<String, dynamic> json) {
+    return ServicePayment(
+      id: json['id'].toString(),
+      status: json['status']?.toString() ?? 'pending',
+      billingType: json['billing_type']?.toString() ?? 'PIX',
+      professionalAmount:
+          double.tryParse(json['professional_amount']?.toString() ?? '') ?? 0,
+      platformFee: double.tryParse(json['platform_fee']?.toString() ?? '') ?? 0,
+      totalAmount: double.tryParse(json['total_amount']?.toString() ?? '') ?? 0,
+      asaasPaymentId: json['asaas_payment_id']?.toString(),
+      asaasStatus: json['asaas_status']?.toString(),
+      pixCopyPaste: json['pix_copy_paste']?.toString(),
+      pixQrCodeBase64: json['pix_qr_code_base64']?.toString(),
+      invoiceUrl: json['invoice_url']?.toString(),
+      paidAt: DateTime.tryParse(json['paid_at']?.toString() ?? ''),
+    );
+  }
+
+  bool get isPaid => status == 'paid';
 }
 
 ProposalStatus proposalStatusFromApi(String? value) {

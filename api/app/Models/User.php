@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\UserStatus;
+use App\Services\Asaas\AsaasClient;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -28,6 +29,7 @@ use Tymon\JWTAuth\Contracts\JWTSubject;
     'status',
     'password',
     'profile_photo',
+    'asaas_customer_id',
 ])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements JWTSubject
@@ -89,6 +91,16 @@ class User extends Authenticatable implements JWTSubject
     public function addresses(): HasMany
     {
         return $this->hasMany(UserAddress::class);
+    }
+
+    /**
+     * Cria ou recupera o customer Asaas e persiste o id.
+     */
+    public function ensureAsaasCustomer(?AsaasClient $asaas = null): string
+    {
+        $asaas ??= app(AsaasClient::class);
+
+        return $asaas->ensureCustomer($this);
     }
 
     public function getProfilePhotoUrlAttribute(): ?string

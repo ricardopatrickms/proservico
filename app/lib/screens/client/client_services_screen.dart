@@ -53,6 +53,7 @@ class _ClientServicesScreenState extends State<ClientServicesScreen>
       .where(
         (r) =>
             r.status == ServiceStatus.pending ||
+            r.status == ServiceStatus.awaitingPayment ||
             r.status == ServiceStatus.inProgress,
       )
       .toList();
@@ -489,25 +490,13 @@ class _ProposalPreview extends StatelessWidget {
                   ],
                 ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    formatCurrency(proposal.amount),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.success,
-                    ),
-                  ),
-                  const Text(
-                    'Valor final para o cliente',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
+              Text(
+                formatCurrency(proposal.amount),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.success,
+                ),
               ),
             ],
           ),
