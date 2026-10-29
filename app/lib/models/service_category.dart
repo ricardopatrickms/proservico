@@ -36,4 +36,11 @@ class ServiceCategory {
           : const [],
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'parent_id': parentId,
+        'active': active,
+      };
 }

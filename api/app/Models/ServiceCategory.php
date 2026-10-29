@@ -16,6 +16,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 ])]
 class ServiceCategory extends Model
 {
+    protected $hidden = ['pivot'];
+
     protected function casts(): array
     {
         return [

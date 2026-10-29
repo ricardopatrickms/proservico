@@ -5,11 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Facades\Storage;
 
 #[Fillable([
     'user_id',
-    'category',
     'profession',
     'experience',
     'region',
@@ -23,10 +23,11 @@ use Illuminate\Support\Facades\Storage;
     'certificate',
     'criminal_record',
     'profile_photo',
-    'service_areas',
 ])]
 class ProfessionalProfile extends Model
 {
+    protected $with = ['serviceCategories'];
+
     protected $appends = [
         'id_document_url',
         'certificate_url',
@@ -34,16 +35,17 @@ class ProfessionalProfile extends Model
         'profile_photo_url',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'service_areas' => 'array',
-        ];
-    }
-
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function serviceCategories(): BelongsToMany
+    {
+        return $this->belongsToMany(ServiceCategory::class)
+            ->withTimestamps()
+            ->orderBy('sort_order')
+            ->orderBy('name');
     }
 
     public function getIdDocumentUrlAttribute(): ?string

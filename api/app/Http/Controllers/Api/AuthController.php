@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Exists;
 use Illuminate\Validation\Rules\Password;
 use Tymon\JWTAuth\Exceptions\JWTException;
 
@@ -27,6 +28,7 @@ class AuthController extends Controller
                 ? preg_replace('/\D+/', '', (string) $request->input('cpf'))
                 : null,
         ]);
+        $this->decodeServiceCategoryIds($request);
 
         $isProfessional = $request->input('type') === 'professional';
 
@@ -61,7 +63,8 @@ class AuthController extends Controller
                 },
             ],
             'bio' => ['nullable', 'string'],
-            'category' => [Rule::requiredIf($isProfessional), 'nullable', 'string', 'max:255'],
+            'service_category_ids' => [Rule::requiredIf($isProfessional), 'nullable', 'array', 'min:1'],
+            'service_category_ids.*' => ['integer', $this->rootCategoryExists()],
             'profession' => [Rule::requiredIf($isProfessional), 'nullable', 'string', 'max:255'],
             'experience' => [Rule::requiredIf($isProfessional), 'nullable', 'string', 'max:255'],
             'region' => [Rule::requiredIf($isProfessional), 'nullable', 'string', 'max:255'],
@@ -111,6 +114,9 @@ class AuthController extends Controller
             'certificate.required' => 'O certificado profissional é obrigatório.',
             'criminal_record.required' => 'A certidão de antecedentes criminais é obrigatória.',
             'profile_photo.required' => 'A foto de perfil é obrigatória.',
+            'service_category_ids.required' => 'Selecione ao menos uma categoria.',
+            'service_category_ids.min' => 'Selecione ao menos uma categoria.',
+            'service_category_ids.*.exists' => 'Categoria inválida.',
         ]);
 
         $existing = isset($data['cpf'])
@@ -146,9 +152,8 @@ class AuthController extends Controller
             try {
                 $folder = 'professionals/'.$user->id;
 
-                ProfessionalProfile::create([
+                $profile = ProfessionalProfile::create([
                     'user_id' => $user->id,
-                    'category' => $data['category'] ?? null,
                     'profession' => $data['profession'] ?? null,
                     'experience' => $data['experience'] ?? null,
                     'region' => $data['region'] ?? null,
@@ -163,6 +168,7 @@ class AuthController extends Controller
                     'criminal_record' => $request->file('criminal_record')->store($folder.'/documents', 'public'),
                     'profile_photo' => $request->file('profile_photo')->store($folder.'/photos', 'public'),
                 ]);
+                $profile->serviceCategories()->sync($data['service_category_ids']);
             } catch (\Throwable $e) {
                 $user->delete();
 
@@ -286,12 +292,7 @@ class AuthController extends Controller
             ]);
         }
 
-        if ($request->has('service_areas') && is_string($request->input('service_areas'))) {
-            $decoded = json_decode($request->input('service_areas'), true);
-            if (is_array($decoded)) {
-                $request->merge(['service_areas' => $decoded]);
-            }
-        }
+        $this->decodeServiceCategoryIds($request);
 
         $data = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
@@ -301,9 +302,11 @@ class AuthController extends Controller
             'bio' => ['nullable', 'string'],
             'password' => ['nullable', 'confirmed', Password::defaults()],
             'profile_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:2048'],
-            'service_areas' => ['nullable', 'array'],
-            'service_areas.*' => ['string', 'max:255'],
+            'service_category_ids' => ['sometimes', 'array', 'min:1'],
+            'service_category_ids.*' => ['integer', $this->rootCategoryExists()],
         ], [
+            'service_category_ids.min' => 'Selecione ao menos uma categoria.',
+            'service_category_ids.*.exists' => 'Categoria inválida.',
             'email.unique' => 'Este e-mail já está cadastrado.',
             'phone.min' => 'Informe um telefone válido.',
             'phone.max' => 'Informe um telefone válido.',
@@ -335,13 +338,13 @@ class AuthController extends Controller
             }
         }
 
-        $serviceAreas = $data['service_areas'] ?? null;
-        unset($data['service_areas']);
+        $categoryIds = $data['service_category_ids'] ?? null;
+        unset($data['service_category_ids']);
 
         $user->update($data);
 
-        if ($user->isProfessional() && $serviceAreas !== null) {
-            $user->professionalProfile?->update(['service_areas' => array_values($serviceAreas)]);
+        if ($user->isProfessional() && $categoryIds !== null) {
+            $user->professionalProfile?->serviceCategories()->sync($categoryIds);
         }
 
         return response()->json([
@@ -426,5 +429,26 @@ class AuthController extends Controller
             'user' => $user,
             'pending_approval' => $user->isProfessional() && $user->isPending(),
         ]);
+    }
+
+    /**
+     * Requisições multipart enviam `service_category_ids` como string JSON.
+     */
+    protected function decodeServiceCategoryIds(Request $request): void
+    {
+        $raw = $request->input('service_category_ids');
+        if (! is_string($raw)) {
+            return;
+        }
+
+        $decoded = json_decode($raw, true);
+        if (is_array($decoded)) {
+            $request->merge(['service_category_ids' => array_values(array_unique($decoded))]);
+        }
+    }
+
+    protected function rootCategoryExists(): Exists
+    {
+        return Rule::exists('service_categories', 'id')->whereNull('parent_id');
     }
 }

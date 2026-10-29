@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../models/service_category.dart';
 import '../../services/api_exception.dart';
 import '../../services/app_image_picker.dart';
 import '../../services/auth_service.dart';
@@ -14,7 +15,7 @@ import '../../widgets/brand_logo.dart';
 import '../../widgets/cpf_input_formatter.dart';
 import '../../widgets/helpers.dart';
 import '../../widgets/phone_input_formatter.dart';
-import '../../widgets/service_category_picker.dart';
+import '../../widgets/service_categories_field.dart';
 import '../professional/pending_approval_screen.dart';
 import 'login_screen.dart';
 
@@ -50,7 +51,7 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
   String? _cpfRemoteError;
 
   // Step 1 — Perfil
-  String? _category;
+  List<ServiceCategory> _categories = [];
   final _professionController = TextEditingController();
   String? _experience;
   final _regionController = TextEditingController();
@@ -168,7 +169,7 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
         password: _passwordController.text,
         passwordConfirmation: _confirmController.text,
         cpf: CpfInputFormatter.digitsOnly(_cpfController.text),
-        category: _category,
+        serviceCategoryIds: _categories.map((c) => c.id).toList(),
         profession: _professionController.text.trim(),
         experience: _experience,
         region: _regionController.text.trim(),
@@ -682,13 +683,11 @@ class _ProfessionalRegisterScreenState extends State<ProfessionalRegisterScreen>
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _field(
-          label: 'Categoria de serviço *',
-          child: ServiceCategoryPicker(
-            value: _category,
-            categoriesOnly: true,
-            hintText: 'Selecione uma categoria',
-            onChanged: (v) => setState(() => _category = v),
-            validator: (v) => v == null ? 'Selecione uma categoria' : null,
+          label: 'Categorias de serviço *',
+          child: ServiceCategoriesField(
+            value: _categories,
+            onChanged: (v) => setState(() => _categories = v),
+            validator: (v) => v.isEmpty ? 'Selecione ao menos uma categoria' : null,
           ),
         ),
         _field(

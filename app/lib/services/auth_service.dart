@@ -59,7 +59,7 @@ class AuthService {
     required String password,
     required String passwordConfirmation,
     required String cpf,
-    String? category,
+    required List<String> serviceCategoryIds,
     String? profession,
     String? experience,
     String? region,
@@ -84,7 +84,7 @@ class AuthService {
         'password_confirmation': passwordConfirmation,
         'type': 'professional',
         'cpf': cpf,
-        if (category != null) 'category': category,
+        'service_category_ids': jsonEncode(serviceCategoryIds),
         if (profession != null) 'profession': profession,
         if (experience != null) 'experience': experience,
         if (region != null) 'region': region,
@@ -130,14 +130,15 @@ class AuthService {
     required String phone,
     String? city,
     String? profilePhotoPath,
-    List<String>? serviceAreas,
+    List<String>? serviceCategoryIds,
   }) async {
     final fields = <String, String>{
       'name': name,
       'email': email,
       'phone': phone,
       if (city != null) 'city': city,
-      if (serviceAreas != null) 'service_areas': jsonEncode(serviceAreas),
+      if (serviceCategoryIds != null)
+        'service_category_ids': jsonEncode(serviceCategoryIds),
     };
 
     final Map<String, dynamic> data;
@@ -157,7 +158,7 @@ class AuthService {
           'email': email,
           'phone': phone,
           if (city != null) 'city': city,
-          if (serviceAreas != null) 'service_areas': serviceAreas,
+          if (serviceCategoryIds != null) 'service_category_ids': serviceCategoryIds,
         },
       );
     }

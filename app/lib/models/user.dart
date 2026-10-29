@@ -1,3 +1,5 @@
+import 'service_category.dart';
+
 enum AccountType { client, professional, admin }
 
 class AppUser {
@@ -10,7 +12,7 @@ class AppUser {
   final String? bio;
   final bool approved;
   final String? profilePhotoUrl;
-  final List<String> serviceAreas;
+  final List<ServiceCategory> serviceCategories;
 
   const AppUser({
     required this.id,
@@ -22,7 +24,7 @@ class AppUser {
     this.bio,
     this.approved = true,
     this.profilePhotoUrl,
-    this.serviceAreas = const [],
+    this.serviceCategories = const [],
   });
 
   factory AppUser.fromJson(Map<String, dynamic> json) {
@@ -40,11 +42,7 @@ class AppUser {
           ? json['status'].toString().toUpperCase() == 'ATIVO'
           : json['approved'] == true || json['approved'] == 1,
       profilePhotoUrl: json['profile_photo_url']?.toString(),
-      serviceAreas: (profile?['service_areas'] as List?)
-              ?.map((e) => e.toString())
-              .where((e) => e.isNotEmpty)
-              .toList() ??
-          const [],
+      serviceCategories: _parseCategories(profile?['service_categories']),
     );
   }
 
@@ -59,12 +57,17 @@ class AppUser {
       bio: json['bio']?.toString(),
       approved: json['approved'] == true,
       profilePhotoUrl: json['profile_photo_url']?.toString(),
-      serviceAreas: (json['service_areas'] as List?)
-              ?.map((e) => e.toString())
-              .where((e) => e.isNotEmpty)
-              .toList() ??
-          const [],
+      serviceCategories: _parseCategories(json['service_categories']),
     );
+  }
+
+  static List<ServiceCategory> _parseCategories(Object? raw) {
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map<String, dynamic>>()
+        .map(ServiceCategory.fromJson)
+        .where((c) => c.name.isNotEmpty)
+        .toList();
   }
 
   Map<String, dynamic> toCacheJson() => {
@@ -77,7 +80,7 @@ class AppUser {
         'bio': bio,
         'approved': approved,
         'profile_photo_url': profilePhotoUrl,
-        'service_areas': serviceAreas,
+        'service_categories': serviceCategories.map((c) => c.toJson()).toList(),
       };
 
   AppUser copyWith({
@@ -88,7 +91,7 @@ class AppUser {
     String? bio,
     bool? approved,
     String? profilePhotoUrl,
-    List<String>? serviceAreas,
+    List<ServiceCategory>? serviceCategories,
   }) {
     return AppUser(
       id: id,
@@ -100,7 +103,7 @@ class AppUser {
       bio: bio ?? this.bio,
       approved: approved ?? this.approved,
       profilePhotoUrl: profilePhotoUrl ?? this.profilePhotoUrl,
-      serviceAreas: serviceAreas ?? this.serviceAreas,
+      serviceCategories: serviceCategories ?? this.serviceCategories,
     );
   }
 }

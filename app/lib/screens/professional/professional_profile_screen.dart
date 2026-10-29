@@ -4,17 +4,18 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../config/api_config.dart';
+import '../../models/service_category.dart';
 import '../../models/user_address.dart';
 import '../../services/app_image_picker.dart';
 import '../../services/session_store.dart';
 import '../../services/address_service.dart';
 import '../../services/api_exception.dart';
 import '../../services/auth_service.dart';
-import '../../services/service_category_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/address_form_dialog.dart';
 import '../../widgets/helpers.dart';
 import '../../widgets/phone_input_formatter.dart';
+import '../../widgets/service_categories_field.dart';
 import 'professional_placeholder_screen.dart';
 
 enum _PickSource { camera, gallery }
@@ -34,13 +35,10 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
   bool _loading = false;
   bool _loadingProfile = true;
   bool _loadingAddresses = true;
-  bool _savingAreas = false;
   String? _pickedPhotoPath;
   String? _existingPhotoUrl;
   List<UserAddress> _addresses = [];
-  final Set<String> _areas = {};
-  List<String> _availableAreas = [];
-  bool _loadingAreas = true;
+  List<ServiceCategory> _categories = [];
 
   @override
   void initState() {
@@ -54,10 +52,9 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
       ),
     );
     _existingPhotoUrl = user?.profilePhotoUrl;
-    _areas.addAll(user?.serviceAreas ?? const []);
+    _categories = List.of(user?.serviceCategories ?? const []);
     _loadProfile();
     _loadAddresses();
-    _loadAreas();
   }
 
   @override
@@ -84,14 +81,7 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
       );
       setState(() {
         _existingPhotoUrl = user.profilePhotoUrl;
-        _areas
-          ..clear()
-          ..addAll(user.serviceAreas);
-        for (final area in user.serviceAreas) {
-          if (!_availableAreas.contains(area)) {
-            _availableAreas.add(area);
-          }
-        }
+        _categories = List.of(user.serviceCategories);
       });
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -118,28 +108,6 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
       showAppSnackBar(context, 'Não foi possível carregar os endereços.');
     } finally {
       if (mounted) setState(() => _loadingAddresses = false);
-    }
-  }
-
-  Future<void> _loadAreas() async {
-    setState(() => _loadingAreas = true);
-    try {
-      final roots = await ServiceCategoryService.instance.list();
-      if (!mounted) return;
-      final catalog = ServiceCategoryService.instance.parentNames(roots);
-      final extras = _areas.where((a) => !catalog.contains(a));
-      setState(() {
-        _availableAreas = [...catalog, ...extras];
-        _loadingAreas = false;
-      });
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      setState(() => _loadingAreas = false);
-      showAppSnackBar(context, e.displayMessage);
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _loadingAreas = false);
-      showAppSnackBar(context, 'Não foi possível carregar as categorias.');
     }
   }
 
@@ -280,6 +248,10 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
       showAppSnackBar(context, 'Foto de perfil é obrigatória');
       return;
     }
+    if (_categories.isEmpty) {
+      showAppSnackBar(context, 'Selecione ao menos uma categoria');
+      return;
+    }
 
     setState(() => _loading = true);
     try {
@@ -289,6 +261,7 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
         phone: phone,
         city: SessionStore.instance.currentUser?.city,
         profilePhotoPath: _pickedPhotoPath,
+        serviceCategoryIds: _categories.map((c) => c.id).toList(),
       );
       if (!mounted) return;
       _nameController.text = user.name;
@@ -299,6 +272,7 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
       setState(() {
         _existingPhotoUrl = user.profilePhotoUrl;
         _pickedPhotoPath = null;
+        _categories = List.of(user.serviceCategories);
       });
       showAppSnackBar(context, 'Perfil atualizado');
     } on ApiException catch (e) {
@@ -310,6 +284,23 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Widget _buildCategories() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Categorias de serviço',
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 8),
+        ServiceCategoriesField(
+          value: _categories,
+          onChanged: (v) => setState(() => _categories = v),
+        ),
+      ],
+    );
   }
 
   Future<void> _addOrEditAddress({UserAddress? existing}) async {
@@ -452,36 +443,6 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
     }
   }
 
-  Future<void> _saveAreas() async {
-    if (_savingAreas) return;
-    if (_areas.isEmpty) {
-      showAppSnackBar(context, 'Selecione ao menos uma área de atuação');
-      return;
-    }
-
-    setState(() => _savingAreas = true);
-    try {
-      final user = await AuthService.instance.updateProfile(
-        name: _nameController.text.trim(),
-        email: _emailController.text.trim(),
-        phone: PhoneInputFormatter.digitsOnly(_phoneController.text),
-        city: SessionStore.instance.currentUser?.city,
-        serviceAreas: _areas.toList(),
-      );
-      if (!mounted) return;
-      setState(() => _areas..clear()..addAll(user.serviceAreas));
-      showAppSnackBar(context, 'Áreas de atuação salvas');
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      showAppSnackBar(context, e.displayMessage);
-    } catch (_) {
-      if (!mounted) return;
-      showAppSnackBar(context, 'Não foi possível salvar as áreas.');
-    } finally {
-      if (mounted) setState(() => _savingAreas = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final name = _nameController.text.trim().isEmpty
@@ -564,6 +525,8 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
                     hintText: '(00) 00000-0000',
                   ),
                 ),
+                const SizedBox(height: 16),
+                _buildCategories(),
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
@@ -669,92 +632,6 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
                   title: const Text('Alterar Senha'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: _changePassword,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          _Card(
-            icon: Icons.category_outlined,
-            title: 'Áreas de Atuação',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _areas.isEmpty
-                      ? 'Nenhuma área selecionada ainda.'
-                      : '${_areas.length} área(s) selecionada(s)',
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Selecione ao menos uma área disponível:',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 10),
-                if (_loadingAreas)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else if (_availableAreas.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8),
-                    child: Text(
-                      'Nenhuma categoria cadastrada no catálogo.',
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                    ),
-                  )
-                else
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final cols = constraints.maxWidth >= 560 ? 2 : 1;
-                      return Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: _availableAreas.map((area) {
-                          final selected = _areas.contains(area);
-                          return SizedBox(
-                            width: cols == 2 ? (constraints.maxWidth - 8) / 2 : constraints.maxWidth,
-                            child: CheckboxListTile(
-                              dense: true,
-                              contentPadding: EdgeInsets.zero,
-                              controlAffinity: ListTileControlAffinity.leading,
-                              value: selected,
-                              title: Text(area, style: const TextStyle(fontSize: 13.5)),
-                              onChanged: (v) {
-                                setState(() {
-                                  if (v == true) {
-                                    _areas.add(area);
-                                  } else {
-                                    _areas.remove(area);
-                                  }
-                                });
-                              },
-                            ),
-                          );
-                        }).toList(),
-                      );
-                    },
-                  ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _savingAreas ? null : _saveAreas,
-                    icon: _savingAreas
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          )
-                        : const Icon(Icons.save_outlined),
-                    label: const Text('Salvar Alterações'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.textPrimary,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
                 ),
               ],
             ),
