@@ -224,6 +224,7 @@ class ServiceProposalController extends Controller
     }
 
     public function payment(
+        Request $request,
         ServiceRequest $serviceRequest,
         ServiceProposal $proposal,
         ServicePaymentService $payments,
@@ -238,17 +239,46 @@ class ServiceProposalController extends Controller
             return response()->json(['message' => 'Proposta inválida'], 422);
         }
 
-        $payment = ServicePayment::query()
+        $forceRenew = $request->boolean('renew');
+
+        $paid = ServicePayment::query()
             ->where('service_proposal_id', $proposal->id)
+            ->where('status', 'paid')
             ->latest('id')
             ->first();
 
-        if (! $payment) {
-            return response()->json(['message' => 'Pagamento não encontrado'], 404);
+        if ($paid) {
+            return response()->json($this->presentPayment($paid));
         }
 
-        if ($payment->status === 'pending') {
-            $payment = $payments->refreshPixData($payment);
+        $pending = ServicePayment::query()
+            ->where('service_proposal_id', $proposal->id)
+            ->where('status', 'pending')
+            ->latest('id')
+            ->first();
+
+        try {
+            if (
+                $forceRenew
+                || ! $pending
+                || strtoupper((string) ($pending->billing_type ?? '')) === 'PIX'
+            ) {
+                $payment = $payments->ensureActivePixPayment(
+                    $serviceRequest->fresh(),
+                    $proposal->fresh(),
+                    $user->fresh(),
+                    $forceRenew,
+                    $request->ip(),
+                );
+            } else {
+                $payment = $payments->syncStatusFromAsaas($pending);
+            }
+        } catch (AsaasException $e) {
+            return response()->json([
+                'message' => $e->getMessage() !== ''
+                    ? $e->getMessage()
+                    : 'Não foi possível obter o pagamento.',
+            ], 502);
         }
 
         return response()->json($this->presentPayment($payment));

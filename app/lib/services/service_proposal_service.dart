@@ -57,9 +57,11 @@ class ServiceProposalService {
   Future<ServicePayment> fetchPayment({
     required String serviceRequestId,
     required String proposalId,
+    bool renew = false,
   }) async {
+    final query = renew ? '?renew=1' : '';
     final data = await _api.get(
-      '/service-requests/$serviceRequestId/proposals/$proposalId/payment',
+      '/service-requests/$serviceRequestId/proposals/$proposalId/payment$query',
       auth: true,
     );
     return ServicePayment.fromJson(data);

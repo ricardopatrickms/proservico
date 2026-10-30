@@ -21,6 +21,7 @@ class ServiceRequestController extends Controller
             'client:id,name,email,phone',
             'professional:id,name,email,phone',
             'proposals.professional:id,name,email,phone',
+            'proposals.activePayment',
         ]);
 
         if ($user->isClient()) {
@@ -135,6 +136,7 @@ class ServiceRequestController extends Controller
             'client',
             'professional',
             'proposals.professional:id,name,email,phone',
+            'proposals.activePayment',
         ]);
 
         return response()->json(
@@ -256,11 +258,16 @@ class ServiceRequestController extends Controller
 
         $serviceRequest->update($payload);
 
-        return response()->json($serviceRequest->fresh()->load([
+        $fresh = $serviceRequest->fresh()->load([
             'client',
             'professional',
             'proposals.professional:id,name,email,phone',
-        ]));
+            'proposals.activePayment',
+        ]);
+
+        return response()->json(
+            $this->presentFor(Auth::guard('api')->user(), $fresh)
+        );
     }
 
     public function updateStatus(Request $request, ServiceRequest $serviceRequest): JsonResponse

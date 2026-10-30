@@ -342,10 +342,20 @@ class ServiceProposal {
 
   String get statusLabel => switch (status) {
         ProposalStatus.pending => 'Pendente',
-        ProposalStatus.accepted => 'Aceita',
+        ProposalStatus.accepted => paymentAwaiting
+            ? 'Aguardando pagamento'
+            : (paymentPaid ? 'Pago' : 'Aceita'),
         ProposalStatus.rejected => 'Recusada',
         ProposalStatus.withdrawn => 'Retirada',
       };
+
+  /// Proposta aceita, mas o Asaas ainda não confirmou o pagamento.
+  bool get paymentAwaiting =>
+      status == ProposalStatus.accepted &&
+      (payment == null || !payment!.isPaid);
+
+  bool get paymentPaid =>
+      status == ProposalStatus.accepted && (payment?.isPaid ?? false);
 }
 
 class ServicePayment {

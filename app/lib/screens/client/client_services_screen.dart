@@ -438,6 +438,12 @@ class _ProposalPreview extends StatelessWidget {
   const _ProposalPreview({required this.proposal});
 
   (Color, Color) get _statusColors {
+    if (proposal.paymentAwaiting) {
+      return (const Color(0xFFFEF3C7), AppColors.warning);
+    }
+    if (proposal.paymentPaid) {
+      return (const Color(0xFFDCFCE7), AppColors.success);
+    }
     return switch (proposal.status) {
       ProposalStatus.pending => (const Color(0xFFDBEAFE), AppColors.primaryDark),
       ProposalStatus.accepted => (const Color(0xFFDCFCE7), AppColors.success),
@@ -618,8 +624,10 @@ class _ServiceProposalsDialog extends StatelessWidget {
 
   const _ServiceProposalsDialog({required this.request});
 
-  Color _statusBg(ProposalStatus status) {
-    return switch (status) {
+  Color _statusBg(ServiceProposal proposal) {
+    if (proposal.paymentAwaiting) return const Color(0xFFFEF3C7);
+    if (proposal.paymentPaid) return const Color(0xFFDCFCE7);
+    return switch (proposal.status) {
       ProposalStatus.pending => const Color(0xFFDBEAFE),
       ProposalStatus.accepted => const Color(0xFFDCFCE7),
       ProposalStatus.rejected => const Color(0xFFE5E7EB),
@@ -627,21 +635,14 @@ class _ServiceProposalsDialog extends StatelessWidget {
     };
   }
 
-  Color _statusFg(ProposalStatus status) {
-    return switch (status) {
+  Color _statusFg(ServiceProposal proposal) {
+    if (proposal.paymentAwaiting) return AppColors.warning;
+    if (proposal.paymentPaid) return AppColors.success;
+    return switch (proposal.status) {
       ProposalStatus.pending => AppColors.primaryDark,
       ProposalStatus.accepted => AppColors.success,
       ProposalStatus.rejected => AppColors.textSecondary,
       ProposalStatus.withdrawn => AppColors.textSecondary,
-    };
-  }
-
-  String _statusLabel(ProposalStatus status) {
-    return switch (status) {
-      ProposalStatus.pending => 'Aguardando',
-      ProposalStatus.accepted => 'Aceita',
-      ProposalStatus.rejected => 'Recusada',
-      ProposalStatus.withdrawn => 'Retirada',
     };
   }
 
@@ -734,15 +735,15 @@ class _ServiceProposalsDialog extends StatelessWidget {
                                       vertical: 3,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: _statusBg(proposal.status),
+                                      color: _statusBg(proposal),
                                       borderRadius: BorderRadius.circular(20),
                                     ),
                                     child: Text(
-                                      _statusLabel(proposal.status),
+                                      proposal.statusLabel,
                                       style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.w700,
-                                        color: _statusFg(proposal.status),
+                                        color: _statusFg(proposal),
                                       ),
                                     ),
                                   ),

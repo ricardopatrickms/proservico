@@ -40,25 +40,53 @@ class ServicePaymentService
             throw new AsaasException('Dados do cartão são obrigatórios.');
         }
 
-        $existing = ServicePayment::query()
+        // Já pago nesta proposta: só reutiliza se for o mesmo meio (evita devolver
+        // cartão pago quando o cliente pediu PIX, e evita cobrança duplicada).
+        $paidSameMethod = ServicePayment::query()
             ->where('service_proposal_id', $proposal->id)
-            ->whereIn('status', ['pending', 'paid'])
+            ->where('status', 'paid')
+            ->where('billing_type', $billingType)
             ->latest('id')
             ->first();
 
-        if ($existing?->isPaid()) {
-            return $existing;
+        if ($paidSameMethod) {
+            return $paidSameMethod;
         }
 
+        $paidOtherMethod = ServicePayment::query()
+            ->where('service_proposal_id', $proposal->id)
+            ->where('status', 'paid')
+            ->where('billing_type', '!=', $billingType)
+            ->latest('id')
+            ->first();
+
+        if ($paidOtherMethod) {
+            throw new AsaasException(
+                'Esta proposta já possui pagamento aprovado pelo Asaas. Não é possível gerar outra cobrança.'
+            );
+        }
+
+        $existingSamePending = ServicePayment::query()
+            ->where('service_proposal_id', $proposal->id)
+            ->where('status', 'pending')
+            ->where('billing_type', $billingType)
+            ->latest('id')
+            ->first();
+
         if (
-            $existing
-            && filled($existing->asaas_payment_id)
-            && $existing->status === 'pending'
-            && strtoupper((string) $existing->billing_type) === self::BILLING_PIX
+            $existingSamePending
+            && filled($existingSamePending->asaas_payment_id)
             && $billingType === self::BILLING_PIX
         ) {
-            return $this->refreshPixData($existing);
+            return $this->refreshPixData($existingSamePending);
         }
+
+        // Troca de meio: cancela pendentes do outro tipo antes de criar a nova cobrança.
+        ServicePayment::query()
+            ->where('service_proposal_id', $proposal->id)
+            ->where('status', 'pending')
+            ->where('billing_type', '!=', $billingType)
+            ->update(['status' => 'cancelled']);
 
         $fee = PlatformFee::fromProfessionalAmount($proposal->getRawOriginal('amount') ?? $proposal->amount);
         $customerId = $this->asaas->ensureCustomer($client);
@@ -106,8 +134,10 @@ class ServicePaymentService
             $pixQr = $pix['encodedImage'] ?? null;
         }
 
+        // Só marca pago se o Asaas confirmar nesta resposta (CONFIRMED/RECEIVED).
+        // PIX quase sempre nasce PENDING; cartão pode vir aprovado na hora.
         $asaasStatus = strtoupper((string) ($payment['status'] ?? 'PENDING'));
-        $isPaidNow = in_array($asaasStatus, ['CONFIRMED', 'RECEIVED'], true);
+        $isPaidNow = $this->asaasStatusIsPaid($asaasStatus);
 
         $record = ServicePayment::create([
             'service_request_id' => $serviceRequest->id,
@@ -137,6 +167,70 @@ class ServicePaymentService
         return $record;
     }
 
+    /**
+     * Retorna o PIX ativo da proposta: atualiza QR, ou gera cobrança nova
+     * se a atual estiver vencida / forçada a renovar.
+     */
+    public function ensureActivePixPayment(
+        ServiceRequest $serviceRequest,
+        ServiceProposal $proposal,
+        User $client,
+        bool $forceRenew = false,
+        ?string $remoteIp = null,
+    ): ServicePayment {
+        $paid = ServicePayment::query()
+            ->where('service_proposal_id', $proposal->id)
+            ->where('status', 'paid')
+            ->latest('id')
+            ->first();
+
+        if ($paid) {
+            return $paid;
+        }
+
+        $pending = ServicePayment::query()
+            ->where('service_proposal_id', $proposal->id)
+            ->where('status', 'pending')
+            ->where('billing_type', self::BILLING_PIX)
+            ->latest('id')
+            ->first();
+
+        if ($pending && filled($pending->asaas_payment_id)) {
+            $pending = $this->syncStatusFromAsaas($pending);
+            if ($pending->isPaid()) {
+                return $pending;
+            }
+
+            $expired = $this->isAsaasChargeExpired($pending);
+            if ($forceRenew || $expired) {
+                $pending->forceFill([
+                    'status' => 'cancelled',
+                    'asaas_status' => $expired ? ($pending->asaas_status ?: 'OVERDUE') : $pending->asaas_status,
+                ])->save();
+
+                return $this->createForAcceptedProposal(
+                    $serviceRequest,
+                    $proposal,
+                    $client,
+                    self::BILLING_PIX,
+                    null,
+                    $remoteIp,
+                );
+            }
+
+            return $this->refreshPixData($pending);
+        }
+
+        return $this->createForAcceptedProposal(
+            $serviceRequest,
+            $proposal,
+            $client,
+            self::BILLING_PIX,
+            null,
+            $remoteIp,
+        );
+    }
+
     public function refreshPixData(ServicePayment $payment): ServicePayment
     {
         if (! filled($payment->asaas_payment_id)) {
@@ -145,6 +239,12 @@ class ServicePaymentService
 
         if (strtoupper((string) $payment->billing_type) !== self::BILLING_PIX) {
             return $payment;
+        }
+
+        $this->syncStatusFromAsaas($payment);
+
+        if ($payment->fresh()?->isPaid()) {
+            return $payment->fresh();
         }
 
         try {
@@ -158,9 +258,102 @@ class ServicePaymentService
                 'payment_id' => $payment->id,
                 'message' => $e->getMessage(),
             ]);
+
+            // QR expirado/indisponível no Asaas → sinaliza para renovação.
+            if ($e->status === 400 || $e->status === 404) {
+                $payment->forceFill(['asaas_status' => 'OVERDUE'])->save();
+            }
         }
 
         return $payment->fresh();
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $remote
+     */
+    protected function isAsaasChargeExpired(ServicePayment $payment, ?array $remote = null): bool
+    {
+        $status = strtoupper((string) ($payment->asaas_status ?? ''));
+        if (in_array($status, ['OVERDUE', 'DELETED', 'REFUNDED', 'EXPIRED'], true)) {
+            return true;
+        }
+
+        try {
+            $remote ??= $this->asaas->get('/payments/'.(string) $payment->asaas_payment_id);
+        } catch (AsaasException) {
+            return false;
+        }
+
+        $remoteStatus = strtoupper((string) ($remote['status'] ?? ''));
+        if (in_array($remoteStatus, ['OVERDUE', 'DELETED', 'REFUNDED', 'EXPIRED'], true)) {
+            return true;
+        }
+
+        $dueDate = $remote['dueDate'] ?? null;
+        if (is_string($dueDate) && $dueDate !== '') {
+            try {
+                return now()->startOfDay()->gt(\Illuminate\Support\Carbon::parse($dueDate)->startOfDay());
+            } catch (\Throwable) {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Consulta o status atual no Asaas e só marca pago se estiver CONFIRMED/RECEIVED.
+     */
+    public function syncStatusFromAsaas(ServicePayment $payment): ServicePayment
+    {
+        if (! filled($payment->asaas_payment_id) || $payment->isPaid()) {
+            return $payment;
+        }
+
+        try {
+            $remote = $this->asaas->get('/payments/'.(string) $payment->asaas_payment_id);
+        } catch (AsaasException $e) {
+            Log::warning('Asaas: falha ao consultar status do pagamento', [
+                'payment_id' => $payment->id,
+                'message' => $e->getMessage(),
+            ]);
+
+            return $payment;
+        }
+
+        $asaasStatus = strtoupper((string) ($remote['status'] ?? $payment->asaas_status ?? 'PENDING'));
+        $payment->forceFill([
+            'asaas_status' => $remote['status'] ?? $payment->asaas_status,
+            'invoice_url' => $remote['invoiceUrl'] ?? $payment->invoice_url,
+        ])->save();
+
+        if (! $this->asaasStatusIsPaid($asaasStatus)) {
+            return $payment->fresh();
+        }
+
+        DB::transaction(function () use ($payment, $asaasStatus) {
+            $locked = ServicePayment::query()->lockForUpdate()->find($payment->id);
+            if (! $locked || $locked->isPaid()) {
+                return;
+            }
+
+            $locked->markPaid($asaasStatus);
+
+            $serviceRequest = ServiceRequest::query()->lockForUpdate()->find($locked->service_request_id);
+            if ($serviceRequest) {
+                $serviceRequest->forceFill([
+                    'professional_id' => $locked->professional_id,
+                    'status' => 'in_progress',
+                ])->save();
+            }
+        });
+
+        return $payment->fresh();
+    }
+
+    protected function asaasStatusIsPaid(string $asaasStatus): bool
+    {
+        return in_array(strtoupper($asaasStatus), ['CONFIRMED', 'RECEIVED'], true);
     }
 
     public function handleWebhookEvent(?string $event, ?string $asaasPaymentId, array $payload): void
@@ -184,7 +377,7 @@ class ServicePaymentService
         }
 
         $isPaidEvent = in_array($event, ['PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED'], true)
-            || in_array(strtoupper((string) $asaasStatus), ['RECEIVED', 'CONFIRMED'], true);
+            || (is_string($asaasStatus) && $this->asaasStatusIsPaid($asaasStatus));
 
         if (! $isPaidEvent) {
             return;
