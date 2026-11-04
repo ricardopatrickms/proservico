@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -52,6 +53,8 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
   late _CheckoutStep _step;
   ServicePayment? _payment;
   String? _resultMessage;
+  Timer? _statusPoll;
+  bool _polling = false;
 
   ServiceProposal get proposal => widget.proposal;
   ServiceRequest get request => widget.request;
@@ -67,10 +70,6 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
     final fee = proposal.platformFee;
     if (fee != null) return (_total - fee).clamp(0, _total);
     return (_total / 1.15);
-  }
-
-  double get _platformFee {
-    return proposal.platformFee ?? (_total - _professional);
   }
 
   @override
@@ -113,6 +112,11 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
         _step = _CheckoutStep.result;
         _submitting = false;
       });
+      if (payment.isPaid) {
+        _stopStatusPoll();
+      } else {
+        _startStatusPoll();
+      }
       if (renew && mounted) {
         showAppSnackBar(context, 'Novo PIX gerado.');
       }
@@ -139,6 +143,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
 
   @override
   void dispose() {
+    _stopStatusPoll();
     _cpf.dispose();
     _cardName.dispose();
     _cardNumber.dispose();
@@ -148,6 +153,48 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
     _addressNumber.dispose();
     _phone.dispose();
     super.dispose();
+  }
+
+  void _startStatusPoll() {
+    if (_payment?.isPaid ?? false) return;
+    _statusPoll?.cancel();
+    _statusPoll = Timer.periodic(const Duration(seconds: 3), (_) {
+      unawaited(_pollPaymentStatus());
+    });
+  }
+
+  void _stopStatusPoll() {
+    _statusPoll?.cancel();
+    _statusPoll = null;
+  }
+
+  Future<void> _pollPaymentStatus() async {
+    if (!mounted || _polling || (_payment?.isPaid ?? false)) return;
+    _polling = true;
+    try {
+      final payment = await ServiceProposalService.instance.fetchPayment(
+        serviceRequestId: request.id,
+        proposalId: proposal.id,
+      );
+      if (!mounted) return;
+      final wasPaid = _payment?.isPaid ?? false;
+      setState(() {
+        _payment = payment;
+        _resultMessage = _messageForPayment(payment);
+      });
+      if (payment.isPaid) {
+        _stopStatusPoll();
+        await ClientRequestsStore.instance.load();
+        if (!mounted) return;
+        if (!wasPaid) {
+          showAppSnackBar(context, 'Pagamento confirmado. Serviço liberado.');
+        }
+      }
+    } catch (_) {
+      // Mantém a tela; próxima tentativa do poll.
+    } finally {
+      _polling = false;
+    }
   }
 
   Future<void> _submit() async {
@@ -205,6 +252,11 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
         _step = _CheckoutStep.result;
         _submitting = false;
       });
+      if (payment.isPaid) {
+        _stopStatusPoll();
+      } else {
+        _startStatusPoll();
+      }
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);
@@ -304,7 +356,6 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                     requestTitle: request.title,
                     professionalName: proposal.professionalName,
                     professionalAmount: _professional,
-                    platformFee: _platformFee,
                     total: _total,
                   ),
                   const SizedBox(height: 20),
@@ -712,14 +763,12 @@ class _SummaryCard extends StatelessWidget {
   final String requestTitle;
   final String professionalName;
   final double professionalAmount;
-  final double platformFee;
   final double total;
 
   const _SummaryCard({
     required this.requestTitle,
     required this.professionalName,
     required this.professionalAmount,
-    required this.platformFee,
     required this.total,
   });
 
@@ -756,8 +805,6 @@ class _SummaryCard extends StatelessWidget {
           const Divider(height: 1),
           const SizedBox(height: 12),
           _line('Valor do serviço', formatCurrency(professionalAmount)),
-          const SizedBox(height: 8),
-          _line('Taxa da plataforma', formatCurrency(platformFee)),
           const SizedBox(height: 12),
           _line(
             'Total',
