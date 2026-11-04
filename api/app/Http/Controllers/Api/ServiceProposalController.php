@@ -15,8 +15,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\ValidationException;
-
 class ServiceProposalController extends Controller
 {
     public function index(ServiceRequest $serviceRequest): JsonResponse
@@ -151,13 +149,8 @@ class ServiceProposalController extends Controller
             ], 422);
         }
 
-        if (User::cpfTaken($cpf, $user->id)) {
-            throw ValidationException::withMessages([
-                'cpf' => ['Este CPF já está cadastrado.'],
-            ]);
-        }
-
-        if (User::normalizeCpf($user->cpf) !== $cpf) {
+        // CPF do pagador (ex.: titular do cartão) pode pertencer a outra conta.
+        if (User::normalizeCpf($user->cpf) === null && ! User::cpfTaken($cpf, $user->id)) {
             $user->forceFill(['cpf' => $cpf])->save();
         }
 
@@ -186,6 +179,7 @@ class ServiceProposalController extends Controller
                 $billingType,
                 $data['credit_card'] ?? null,
                 $request->ip(),
+                $cpf,
             );
         } catch (AsaasException $e) {
             Log::error('Asaas: falha ao criar cobrança no aceite', [

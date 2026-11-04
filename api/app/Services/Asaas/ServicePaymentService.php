@@ -30,6 +30,7 @@ class ServicePaymentService
         string $billingType = self::BILLING_PIX,
         ?array $creditCard = null,
         ?string $remoteIp = null,
+        ?string $payerCpf = null,
     ): ServicePayment {
         $billingType = strtoupper($billingType);
         if (! in_array($billingType, [self::BILLING_PIX, self::BILLING_CREDIT_CARD], true)) {
@@ -89,7 +90,7 @@ class ServicePaymentService
             ->update(['status' => 'cancelled']);
 
         $fee = PlatformFee::fromProfessionalAmount($proposal->getRawOriginal('amount') ?? $proposal->amount);
-        $customerId = $this->asaas->ensureCustomer($client);
+        $customerId = $this->asaas->ensureCustomer($client, $payerCpf);
 
         $payload = [
             'customer' => $customerId,
@@ -111,7 +112,7 @@ class ServicePaymentService
             $payload['creditCardHolderInfo'] = [
                 'name' => (string) ($creditCard['holder_name'] ?? $client->name),
                 'email' => (string) ($creditCard['email'] ?? $client->email),
-                'cpfCnpj' => preg_replace('/\D+/', '', (string) ($creditCard['cpf'] ?? $client->cpf ?? '')),
+                'cpfCnpj' => preg_replace('/\D+/', '', (string) ($creditCard['cpf'] ?? $payerCpf ?? $client->cpf ?? '')),
                 'postalCode' => preg_replace('/\D+/', '', (string) ($creditCard['postal_code'] ?? $serviceRequest->cep ?? '')),
                 'addressNumber' => (string) ($creditCard['address_number'] ?? $serviceRequest->number ?? 'S/N'),
                 'phone' => preg_replace('/\D+/', '', (string) ($creditCard['phone'] ?? $client->phone ?? '')),

@@ -28,29 +28,36 @@ class AsaasClient
     /**
      * Garante customer Asaas para o usuário e persiste `asaas_customer_id`.
      * Exige CPF/CNPJ — obrigatório para criar cobrança no Asaas.
+     *
+     * `$payerCpf` (ex.: CPF do titular do cartão) tem prioridade sobre o CPF do perfil
+     * e pode pertencer a outra conta do app.
      */
-    public function ensureCustomer(User $user): string
+    public function ensureCustomer(User $user, ?string $payerCpf = null): string
     {
-        $cpf = User::normalizeCpf($user->cpf);
-        if ($cpf === null) {
-            throw new AsaasException('Informe o CPF para criar a cobrança.');
-        }
+        $ownCpf = User::normalizeCpf($user->cpf);
+        $cpf = User::normalizeCpf($payerCpf) ?? $ownCpf;
 
         if (filled($user->asaas_customer_id)) {
-            $this->syncCustomerCpf((string) $user->asaas_customer_id, $user);
+            if ($cpf !== null) {
+                $this->syncCustomerCpf((string) $user->asaas_customer_id, $user, $cpf);
+            }
 
             return (string) $user->asaas_customer_id;
         }
 
-        $existingId = $this->findCustomerId($user);
+        if ($cpf === null) {
+            throw new AsaasException('Informe o CPF para criar a cobrança.');
+        }
+
+        $existingId = $this->findCustomerId($user, $cpf === $ownCpf ? $cpf : null);
         if ($existingId !== null) {
-            $this->syncCustomerCpf($existingId, $user);
+            $this->syncCustomerCpf($existingId, $user, $cpf);
             $user->forceFill(['asaas_customer_id' => $existingId])->save();
 
             return $existingId;
         }
 
-        $payload = $this->customerPayload($user);
+        $payload = $this->customerPayload($user, $cpf);
         $created = $this->post('/customers', $payload);
         $id = $created['id'] ?? null;
 
@@ -66,9 +73,9 @@ class AsaasClient
     /**
      * Atualiza o customer Asaas com CPF (e dados básicos) quando já existe.
      */
-    protected function syncCustomerCpf(string $customerId, User $user): void
+    protected function syncCustomerCpf(string $customerId, User $user, string $cpf): void
     {
-        $this->put('/customers/'.$customerId, $this->customerPayload($user));
+        $this->put('/customers/'.$customerId, $this->customerPayload($user, $cpf));
     }
 
     /**
@@ -96,9 +103,8 @@ class AsaasClient
         }
     }
 
-    protected function findCustomerId(User $user): ?string
+    protected function findCustomerId(User $user, ?string $cpf): ?string
     {
-        $cpf = User::normalizeCpf($user->cpf);
         if ($cpf !== null) {
             $byCpf = $this->get('/customers', ['cpfCnpj' => $cpf]);
             $id = $byCpf['data'][0]['id'] ?? null;
@@ -121,21 +127,15 @@ class AsaasClient
     /**
      * @return array<string, mixed>
      */
-    protected function customerPayload(User $user): array
+    protected function customerPayload(User $user, string $cpf): array
     {
         $payload = [
             'name' => $user->name,
             'email' => $user->email,
             'externalReference' => (string) $user->id,
             'notificationDisabled' => true,
+            'cpfCnpj' => $cpf,
         ];
-
-        $cpf = User::normalizeCpf($user->cpf);
-        if ($cpf !== null) {
-            $payload['cpfCnpj'] = $cpf;
-        } else {
-            throw new AsaasException('Informe o CPF para criar a cobrança.');
-        }
 
         $phone = preg_replace('/\D+/', '', (string) $user->phone);
         if (is_string($phone) && strlen($phone) >= 10) {
