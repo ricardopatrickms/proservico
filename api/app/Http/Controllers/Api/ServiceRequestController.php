@@ -276,6 +276,11 @@ class ServiceRequestController extends Controller
                     'message' => 'Você só pode atender solicitações da mesma cidade do seu cadastro.',
                 ], 422);
             }
+            if ($user->hasReachedActiveServicesLimit()) {
+                return response()->json([
+                    'message' => 'Você já tem '.User::MAX_ACTIVE_SERVICES.' serviços em andamento. Conclua um deles para aceitar um novo atendimento.',
+                ], 422);
+            }
             $serviceRequest->professional_id = $user->id;
         }
 

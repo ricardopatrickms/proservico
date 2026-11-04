@@ -35,6 +35,9 @@ class User extends Authenticatable implements JWTSubject
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
+    /** Máximo de serviços em andamento por profissional. */
+    public const MAX_ACTIVE_SERVICES = 3;
+
     protected $appends = [
         'profile_photo_url',
         'approved',
@@ -131,6 +134,16 @@ class User extends Authenticatable implements JWTSubject
     public function isPending(): bool
     {
         return $this->status === UserStatus::Pendente;
+    }
+
+    public function activeServicesCount(): int
+    {
+        return $this->assignedServices()->where('status', 'in_progress')->count();
+    }
+
+    public function hasReachedActiveServicesLimit(): bool
+    {
+        return $this->activeServicesCount() >= self::MAX_ACTIVE_SERVICES;
     }
 
     /**

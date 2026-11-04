@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ServiceProposal;
 use App\Models\ServiceRequest;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -91,6 +92,12 @@ class ServiceProposalController extends Controller
         }
 
         if ($data['status'] === 'accepted') {
+            if ($proposal->professional?->hasReachedActiveServicesLimit()) {
+                return response()->json([
+                    'message' => 'Este profissional já está com '.User::MAX_ACTIVE_SERVICES.' serviços em andamento e não pode assumir um novo no momento.',
+                ], 422);
+            }
+
             $proposal->status = 'accepted';
             $proposal->save();
 
