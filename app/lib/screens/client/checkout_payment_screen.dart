@@ -63,15 +63,6 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
     return proposal.clientAmount ?? proposal.amount;
   }
 
-  double get _professional {
-    if (proposal.professionalAmount != null) {
-      return proposal.professionalAmount!;
-    }
-    final fee = proposal.platformFee;
-    if (fee != null) return (_total - fee).clamp(0, _total);
-    return (_total / 1.15);
-  }
-
   @override
   void initState() {
     super.initState();
@@ -355,7 +346,6 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                   _SummaryCard(
                     requestTitle: request.title,
                     professionalName: proposal.professionalName,
-                    professionalAmount: _professional,
                     total: _total,
                   ),
                   const SizedBox(height: 20),
@@ -762,13 +752,11 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
 class _SummaryCard extends StatelessWidget {
   final String requestTitle;
   final String professionalName;
-  final double professionalAmount;
   final double total;
 
   const _SummaryCard({
     required this.requestTitle,
     required this.professionalName,
-    required this.professionalAmount,
     required this.total,
   });
 
@@ -804,7 +792,7 @@ class _SummaryCard extends StatelessWidget {
           const SizedBox(height: 14),
           const Divider(height: 1),
           const SizedBox(height: 12),
-          _line('Valor do serviço', formatCurrency(professionalAmount)),
+          _line('Valor do serviço', formatCurrency(total)),
           const SizedBox(height: 12),
           _line(
             'Total',
