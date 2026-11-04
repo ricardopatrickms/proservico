@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('professional_profile_service_category')) {
+            return;
+        }
+
         Schema::create('professional_profile_service_category', function (Blueprint $table) {
             $table->id();
             $table->foreignId('professional_profile_id')

@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Api\AdminController;
+use App\Http\Controllers\Api\AsaasController;
+use App\Http\Controllers\Api\AsaasWebhookController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProfessionalServiceController;
 use App\Http\Controllers\Api\ServiceCategoryController;
@@ -10,6 +12,8 @@ use App\Http\Controllers\Api\UserAddressController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('service-categories', [ServiceCategoryController::class, 'catalog']);
+
+Route::post('webhooks/asaas', AsaasWebhookController::class);
 
 Route::prefix('auth')->group(function () {
     Route::post('register', [AuthController::class, 'register']);
@@ -28,6 +32,8 @@ Route::prefix('auth')->group(function () {
 });
 
 Route::middleware(['auth:api', 'account.active'])->group(function () {
+    Route::post('asaas/sync-customer', [AsaasController::class, 'syncCustomer']);
+
     Route::get('service-requests', [ServiceRequestController::class, 'index']);
     Route::post('service-requests', [ServiceRequestController::class, 'store']);
     Route::get('service-requests/{serviceRequest}', [ServiceRequestController::class, 'show']);
@@ -37,6 +43,7 @@ Route::middleware(['auth:api', 'account.active'])->group(function () {
     Route::get('service-requests/{serviceRequest}/proposals', [ServiceProposalController::class, 'index']);
     Route::post('service-requests/{serviceRequest}/proposals', [ServiceProposalController::class, 'store']);
     Route::patch('service-requests/{serviceRequest}/proposals/{proposal}/status', [ServiceProposalController::class, 'updateStatus']);
+    Route::get('service-requests/{serviceRequest}/proposals/{proposal}/payment', [ServiceProposalController::class, 'payment']);
 
     Route::get('user-addresses', [UserAddressController::class, 'index']);
     Route::post('user-addresses', [UserAddressController::class, 'store']);

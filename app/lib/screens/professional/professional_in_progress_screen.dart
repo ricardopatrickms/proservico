@@ -61,6 +61,7 @@ class _ProfessionalInProgressScreenState
   String _statusLabel(ServiceStatus status) {
     return switch (status) {
       ServiceStatus.pending => 'Aguardando',
+      ServiceStatus.awaitingPayment => 'Aguardando pagamento',
       ServiceStatus.inProgress => 'Em andamento',
       ServiceStatus.completed => 'Concluído',
       ServiceStatus.cancelled => 'Cancelado',
@@ -70,6 +71,7 @@ class _ProfessionalInProgressScreenState
   Color _statusColor(ServiceStatus status) {
     return switch (status) {
       ServiceStatus.pending => AppColors.warning,
+      ServiceStatus.awaitingPayment => AppColors.warning,
       ServiceStatus.inProgress => AppColors.primary,
       ServiceStatus.completed => AppColors.success,
       ServiceStatus.cancelled => AppColors.danger,

@@ -5,6 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
     'service_request_id',
@@ -30,5 +32,19 @@ class ServiceProposal extends Model
     public function professional(): BelongsTo
     {
         return $this->belongsTo(User::class, 'professional_id');
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(ServicePayment::class);
+    }
+
+    /** Pagamento ativo mais recente (pago ou pendente). */
+    public function activePayment(): HasOne
+    {
+        return $this->hasOne(ServicePayment::class)->ofMany(
+            ['id' => 'max'],
+            fn ($query) => $query->whereIn('status', ['pending', 'paid']),
+        );
     }
 }

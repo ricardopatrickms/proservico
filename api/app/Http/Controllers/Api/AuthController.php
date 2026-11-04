@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ProfessionalProfile;
 use App\Models\User;
 use App\Notifications\ResetPassword;
+use App\Services\Asaas\AsaasClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -176,6 +177,8 @@ class AuthController extends Controller
             }
         }
 
+        app(AsaasClient::class)->tryEnsureCustomer($user->fresh());
+
         $token = Auth::guard('api')->login($user);
         $pendingApproval = $user->isProfessional() && $user->isPending();
 
@@ -186,7 +189,7 @@ class AuthController extends Controller
             'access_token' => $token,
             'token_type' => 'bearer',
             'expires_in' => Auth::guard('api')->factory()->getTTL() * 60,
-            'user' => $user->load('professionalProfile'),
+            'user' => $user->fresh()->load('professionalProfile'),
             'pending_approval' => $pendingApproval,
         ], 201);
     }
