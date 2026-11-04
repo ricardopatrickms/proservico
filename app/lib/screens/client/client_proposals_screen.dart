@@ -7,6 +7,7 @@ import '../../services/api_exception.dart';
 import '../../services/service_proposal_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/helpers.dart';
+import 'checkout_payment_screen.dart';
 
 class ClientProposalsScreen extends StatefulWidget {
   /// Se informado, foca nesta solicitação; senão lista todas com propostas.
@@ -60,20 +61,54 @@ class _ClientProposalsScreenState extends State<ClientProposalsScreen> {
   String _dateTime(DateTime date) =>
       DateFormat("dd/MM/yyyy 'às' HH:mm:ss", 'pt_BR').format(date);
 
-  Future<void> _respond({
+  Future<void> _accept({
     required ServiceRequest request,
     required ServiceProposal proposal,
-    required String status,
   }) async {
-    final accepting = status == 'accepted';
+    final done = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => CheckoutPaymentScreen(
+          request: request,
+          proposal: proposal,
+        ),
+      ),
+    );
+    if (done == true && mounted) {
+      await _store.load();
+    }
+  }
+
+  Future<void> _openPendingPayment({
+    required ServiceRequest request,
+    required ServiceProposal proposal,
+  }) async {
+    final done = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => CheckoutPaymentScreen(
+          request: request,
+          proposal: proposal,
+          resumePayment: true,
+        ),
+      ),
+    );
+    if (mounted) {
+      await _store.load();
+      if (done == true) {
+        // status pode ter mudado após renovar/consultar
+      }
+    }
+  }
+
+  Future<void> _reject({
+    required ServiceRequest request,
+    required ServiceProposal proposal,
+  }) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(accepting ? 'Aceitar proposta' : 'Recusar proposta'),
+        title: const Text('Recusar proposta'),
         content: Text(
-          accepting
-              ? 'Aceitar a proposta de ${proposal.professionalName} por ${formatCurrency(proposal.amount)}?'
-              : 'Recusar a proposta de ${proposal.professionalName}?',
+          'Recusar a proposta de ${proposal.professionalName}?',
         ),
         actions: [
           TextButton(
@@ -82,7 +117,7 @@ class _ClientProposalsScreenState extends State<ClientProposalsScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(accepting ? 'Aceitar' : 'Recusar'),
+            child: const Text('Recusar'),
           ),
         ],
       ),
@@ -94,14 +129,11 @@ class _ClientProposalsScreenState extends State<ClientProposalsScreen> {
       await ServiceProposalService.instance.updateStatus(
         serviceRequestId: request.id,
         proposalId: proposal.id,
-        status: status,
+        status: 'rejected',
       );
       await _store.load();
       if (!mounted) return;
-      showAppSnackBar(
-        context,
-        accepting ? 'Proposta aceita.' : 'Proposta recusada.',
-      );
+      showAppSnackBar(context, 'Proposta recusada.');
     } on ApiException catch (e) {
       if (!mounted) return;
       showAppSnackBar(context, e.displayMessage);
@@ -197,15 +229,17 @@ class _ClientProposalsScreenState extends State<ClientProposalsScreen> {
                           request.createdAt ?? request.scheduledAt,
                         ),
                         formatDateTime: _dateTime,
-                        onAccept: (p) => _respond(
+                        onAccept: (p) => _accept(
                           request: request,
                           proposal: p,
-                          status: 'accepted',
                         ),
-                        onReject: (p) => _respond(
+                        onReject: (p) => _reject(
                           request: request,
                           proposal: p,
-                          status: 'rejected',
+                        ),
+                        onPay: (p) => _openPendingPayment(
+                          request: request,
+                          proposal: p,
                         ),
                       ),
                     ),
@@ -230,6 +264,7 @@ class _RequestProposalsCard extends StatelessWidget {
   final String Function(DateTime) formatDateTime;
   final ValueChanged<ServiceProposal> onAccept;
   final ValueChanged<ServiceProposal> onReject;
+  final ValueChanged<ServiceProposal> onPay;
 
   const _RequestProposalsCard({
     required this.request,
@@ -237,6 +272,7 @@ class _RequestProposalsCard extends StatelessWidget {
     required this.formatDateTime,
     required this.onAccept,
     required this.onReject,
+    required this.onPay,
   });
 
   @override
@@ -348,6 +384,9 @@ class _RequestProposalsCard extends StatelessWidget {
                 onReject: proposal.status == ProposalStatus.pending
                     ? () => onReject(proposal)
                     : null,
+                onPay: proposal.paymentAwaiting
+                    ? () => onPay(proposal)
+                    : null,
               ),
             ),
           ),
@@ -362,15 +401,19 @@ class _ProposalCard extends StatelessWidget {
   final String sentAt;
   final VoidCallback? onAccept;
   final VoidCallback? onReject;
+  final VoidCallback? onPay;
 
   const _ProposalCard({
     required this.proposal,
     required this.sentAt,
     this.onAccept,
     this.onReject,
+    this.onPay,
   });
 
   Color get _statusBg {
+    if (proposal.paymentAwaiting) return const Color(0xFFFEF3C7);
+    if (proposal.paymentPaid) return const Color(0xFFDCFCE7);
     return switch (proposal.status) {
       ProposalStatus.pending => const Color(0xFFDBEAFE),
       ProposalStatus.accepted => const Color(0xFFDCFCE7),
@@ -380,6 +423,8 @@ class _ProposalCard extends StatelessWidget {
   }
 
   Color get _statusFg {
+    if (proposal.paymentAwaiting) return AppColors.warning;
+    if (proposal.paymentPaid) return AppColors.success;
     return switch (proposal.status) {
       ProposalStatus.pending => AppColors.primaryDark,
       ProposalStatus.accepted => AppColors.success,
@@ -391,7 +436,7 @@ class _ProposalCard extends StatelessWidget {
   String get _statusLabel {
     return switch (proposal.status) {
       ProposalStatus.pending => 'Aguardando',
-      ProposalStatus.accepted => 'Aceita',
+      ProposalStatus.accepted => proposal.statusLabel,
       ProposalStatus.rejected => 'Recusada',
       ProposalStatus.withdrawn => 'Retirada',
     };
@@ -471,6 +516,35 @@ class _ProposalCard extends StatelessWidget {
             'Enviada em $sentAt',
             style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
           ),
+          if (onPay != null) ...[
+            const SizedBox(height: 12),
+            Material(
+              color: AppColors.primary,
+              borderRadius: BorderRadius.circular(10),
+              child: InkWell(
+                onTap: onPay,
+                borderRadius: BorderRadius.circular(10),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.qr_code_2, size: 18, color: Colors.white),
+                      SizedBox(width: 8),
+                      Text(
+                        'Ver / copiar PIX',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
           if (onAccept != null || onReject != null) ...[
             const SizedBox(height: 12),
             Row(

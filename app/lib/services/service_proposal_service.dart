@@ -1,4 +1,5 @@
 import '../models/service_request.dart';
+import '../widgets/credit_card_payment_sheet.dart';
 import 'api_client.dart';
 
 class ServiceProposalService {
@@ -36,12 +37,33 @@ class ServiceProposalService {
     required String serviceRequestId,
     required String proposalId,
     required String status,
+    String? billingType,
+    String? cpf,
+    CreditCardFormData? creditCard,
   }) async {
     final data = await _api.patch(
       '/service-requests/$serviceRequestId/proposals/$proposalId/status',
       auth: true,
-      body: {'status': status},
+      body: {
+        'status': status,
+        if (billingType != null) 'billing_type': billingType,
+        if (cpf != null && cpf.isNotEmpty) 'cpf': cpf,
+        if (creditCard != null) 'credit_card': creditCard.toJson(),
+      },
     );
     return ServiceProposal.fromJson(data);
+  }
+
+  Future<ServicePayment> fetchPayment({
+    required String serviceRequestId,
+    required String proposalId,
+    bool renew = false,
+  }) async {
+    final query = renew ? '?renew=1' : '';
+    final data = await _api.get(
+      '/service-requests/$serviceRequestId/proposals/$proposalId/payment$query',
+      auth: true,
+    );
+    return ServicePayment.fromJson(data);
   }
 }

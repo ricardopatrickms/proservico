@@ -12,6 +12,7 @@ class StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, color) = switch (status) {
       ServiceStatus.pending => ('Pendente', AppColors.warning),
+      ServiceStatus.awaitingPayment => ('Aguardando pagamento', AppColors.warning),
       ServiceStatus.inProgress => ('Em andamento', AppColors.primary),
       ServiceStatus.completed => ('Concluído', AppColors.success),
       ServiceStatus.cancelled => ('Cancelado', AppColors.danger),

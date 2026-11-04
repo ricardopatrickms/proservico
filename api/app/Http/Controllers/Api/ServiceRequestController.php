@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ServiceRequest;
 use App\Models\User;
+use App\Support\ProposalPresenter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -20,6 +21,7 @@ class ServiceRequestController extends Controller
             'client:id,name,email,phone',
             'professional:id,name,email,phone',
             'proposals.professional:id,name,email,phone',
+            'proposals.activePayment',
         ]);
 
         if ($user->isClient()) {
@@ -33,7 +35,9 @@ class ServiceRequestController extends Controller
             });
         }
 
-        $requests = $query->latest()->get();
+        $requests = $query->latest()->get()
+            ->map(fn (ServiceRequest $request) => $this->presentFor($user, $request))
+            ->values();
 
         if ($user->isProfessional()) {
             $requests = $requests
@@ -44,7 +48,6 @@ class ServiceRequestController extends Controller
 
                     return $user->servesCity($request->city);
                 })
-                ->map(fn (ServiceRequest $request) => $this->presentFor($user, $request))
                 ->values();
         }
 
@@ -133,6 +136,7 @@ class ServiceRequestController extends Controller
             'client',
             'professional',
             'proposals.professional:id,name,email,phone',
+            'proposals.activePayment',
         ]);
 
         return response()->json(
@@ -254,11 +258,16 @@ class ServiceRequestController extends Controller
 
         $serviceRequest->update($payload);
 
-        return response()->json($serviceRequest->fresh()->load([
+        $fresh = $serviceRequest->fresh()->load([
             'client',
             'professional',
             'proposals.professional:id,name,email,phone',
-        ]));
+            'proposals.activePayment',
+        ]);
+
+        return response()->json(
+            $this->presentFor(Auth::guard('api')->user(), $fresh)
+        );
     }
 
     public function updateStatus(Request $request, ServiceRequest $serviceRequest): JsonResponse
@@ -266,7 +275,7 @@ class ServiceRequestController extends Controller
         $user = Auth::guard('api')->user();
 
         $data = $request->validate([
-            'status' => ['required', Rule::in(['pending', 'in_progress', 'completed', 'cancelled'])],
+            'status' => ['required', Rule::in(['pending', 'awaiting_payment', 'in_progress', 'completed', 'cancelled'])],
             'professional_id' => ['nullable', 'exists:users,id'],
         ]);
 
@@ -321,17 +330,19 @@ class ServiceRequestController extends Controller
      */
     protected function presentFor(User $user, ServiceRequest $serviceRequest): ServiceRequest
     {
-        if (! $user->isProfessional()) {
-            return $serviceRequest;
-        }
-
         if ($serviceRequest->relationLoaded('proposals')) {
+            $proposals = $serviceRequest->proposals;
+            if ($user->isProfessional()) {
+                $proposals = $proposals->where('professional_id', $user->id)->values();
+            }
             $serviceRequest->setRelation(
                 'proposals',
-                $serviceRequest->proposals
-                    ->where('professional_id', $user->id)
-                    ->values()
+                ProposalPresenter::collection($proposals, $user)
             );
+        }
+
+        if (! $user->isProfessional()) {
+            return $serviceRequest;
         }
 
         if ((int) $serviceRequest->professional_id === (int) $user->id) {
