@@ -22,6 +22,9 @@ class ApiConfig {
         : pathOrUrl;
     path = path.replaceFirst(RegExp(r'^/'), '');
     if (!path.startsWith('storage/')) path = 'storage/$path';
-    return '${baseUrl.replaceAll('/api', '')}/$path';
+    // Remove apenas o sufixo `/api`: `replaceAll` casaria também com o `/api`
+    // de `https://api.exemplo.com`, quebrando o host.
+    final origin = baseUrl.replaceFirst(RegExp(r'/api/?$'), '');
+    return '$origin/$path';
   }
 }
