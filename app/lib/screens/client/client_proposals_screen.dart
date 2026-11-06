@@ -81,6 +81,7 @@ class _ClientProposalsScreenState extends State<ClientProposalsScreen> {
   Future<void> _openPendingPayment({
     required ServiceRequest request,
     required ServiceProposal proposal,
+    bool changeMethod = false,
   }) async {
     final done = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
@@ -88,6 +89,7 @@ class _ClientProposalsScreenState extends State<ClientProposalsScreen> {
           request: request,
           proposal: proposal,
           resumePayment: true,
+          changePaymentMethod: changeMethod,
         ),
       ),
     );
@@ -241,6 +243,11 @@ class _ClientProposalsScreenState extends State<ClientProposalsScreen> {
                           request: request,
                           proposal: p,
                         ),
+                        onChangePaymentMethod: (p) => _openPendingPayment(
+                          request: request,
+                          proposal: p,
+                          changeMethod: true,
+                        ),
                       ),
                     ),
                   ),
@@ -265,6 +272,7 @@ class _RequestProposalsCard extends StatelessWidget {
   final ValueChanged<ServiceProposal> onAccept;
   final ValueChanged<ServiceProposal> onReject;
   final ValueChanged<ServiceProposal> onPay;
+  final ValueChanged<ServiceProposal> onChangePaymentMethod;
 
   const _RequestProposalsCard({
     required this.request,
@@ -273,6 +281,7 @@ class _RequestProposalsCard extends StatelessWidget {
     required this.onAccept,
     required this.onReject,
     required this.onPay,
+    required this.onChangePaymentMethod,
   });
 
   @override
@@ -387,6 +396,9 @@ class _RequestProposalsCard extends StatelessWidget {
                 onPay: proposal.paymentAwaiting
                     ? () => onPay(proposal)
                     : null,
+                onChangePaymentMethod: proposal.paymentAwaiting
+                    ? () => onChangePaymentMethod(proposal)
+                    : null,
               ),
             ),
           ),
@@ -402,6 +414,7 @@ class _ProposalCard extends StatelessWidget {
   final VoidCallback? onAccept;
   final VoidCallback? onReject;
   final VoidCallback? onPay;
+  final VoidCallback? onChangePaymentMethod;
 
   const _ProposalCard({
     required this.proposal,
@@ -409,6 +422,7 @@ class _ProposalCard extends StatelessWidget {
     this.onAccept,
     this.onReject,
     this.onPay,
+    this.onChangePaymentMethod,
   });
 
   Color get _statusBg {
@@ -524,16 +538,26 @@ class _ProposalCard extends StatelessWidget {
               child: InkWell(
                 onTap: onPay,
                 borderRadius: BorderRadius.circular(10),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.qr_code_2, size: 18, color: Colors.white),
-                      SizedBox(width: 8),
+                      Icon(
+                        (proposal.payment?.billingType.toUpperCase() ==
+                                'CREDIT_CARD')
+                            ? Icons.credit_card
+                            : Icons.qr_code_2,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 8),
                       Text(
-                        'Ver / copiar PIX',
-                        style: TextStyle(
+                        (proposal.payment?.billingType.toUpperCase() ==
+                                'CREDIT_CARD')
+                            ? 'Continuar pagamento'
+                            : 'Ver / copiar PIX',
+                        style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
                           fontSize: 13,
@@ -544,6 +568,43 @@ class _ProposalCard extends StatelessWidget {
                 ),
               ),
             ),
+            if (onChangePaymentMethod != null) ...[
+              const SizedBox(height: 8),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onChangePaymentMethod,
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.primary),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.swap_horiz,
+                          size: 18,
+                          color: AppColors.primary,
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'Trocar forma de pagamento',
+                          style: TextStyle(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
           if (onAccept != null || onReject != null) ...[
             const SizedBox(height: 12),

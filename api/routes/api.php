@@ -44,6 +44,7 @@ Route::middleware(['auth:api', 'account.active'])->group(function () {
     Route::post('service-requests/{serviceRequest}/proposals', [ServiceProposalController::class, 'store']);
     Route::patch('service-requests/{serviceRequest}/proposals/{proposal}/status', [ServiceProposalController::class, 'updateStatus']);
     Route::get('service-requests/{serviceRequest}/proposals/{proposal}/payment', [ServiceProposalController::class, 'payment']);
+    Route::post('service-requests/{serviceRequest}/proposals/{proposal}/payment', [ServiceProposalController::class, 'storePayment']);
 
     Route::get('user-addresses', [UserAddressController::class, 'index']);
     Route::post('user-addresses', [UserAddressController::class, 'store']);
@@ -57,6 +58,8 @@ Route::middleware(['auth:api', 'account.active'])->group(function () {
 
     Route::prefix('admin')->group(function () {
         Route::get('dashboard', [AdminController::class, 'dashboard']);
+        Route::get('analytics', [AdminController::class, 'analytics']);
+        Route::get('billing', [AdminController::class, 'billing']);
         Route::get('users', [AdminController::class, 'users']);
         Route::get('users/{user}', [AdminController::class, 'showUser']);
         Route::patch('users/{user}/approval', [AdminController::class, 'setApproval']);

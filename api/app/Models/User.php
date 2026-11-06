@@ -91,6 +91,11 @@ class User extends Authenticatable implements JWTSubject
         return $this->hasMany(ServiceRequest::class, 'professional_id');
     }
 
+    public function professionalPayments(): HasMany
+    {
+        return $this->hasMany(ServicePayment::class, 'professional_id');
+    }
+
     public function addresses(): HasMany
     {
         return $this->hasMany(UserAddress::class);

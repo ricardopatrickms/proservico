@@ -285,6 +285,120 @@ class ServiceProposalController extends Controller
     }
 
     /**
+     * Troca (ou recria) a cobrança pendente de uma proposta já aceita.
+     */
+    public function storePayment(
+        Request $request,
+        ServiceRequest $serviceRequest,
+        ServiceProposal $proposal,
+        ServicePaymentService $payments,
+    ): JsonResponse {
+        $user = Auth::guard('api')->user();
+
+        if (! $user->isClient() || $serviceRequest->client_id !== $user->id) {
+            return response()->json(['message' => 'Acesso negado'], 403);
+        }
+
+        if ($proposal->service_request_id !== $serviceRequest->id) {
+            return response()->json(['message' => 'Proposta inválida'], 422);
+        }
+
+        if ($proposal->status !== 'accepted') {
+            return response()->json([
+                'message' => 'Só é possível alterar o pagamento de propostas aceitas.',
+            ], 422);
+        }
+
+        if ($serviceRequest->status !== 'awaiting_payment') {
+            return response()->json([
+                'message' => 'Este serviço não está aguardando pagamento.',
+            ], 422);
+        }
+
+        $paid = ServicePayment::query()
+            ->where('service_proposal_id', $proposal->id)
+            ->where('status', 'paid')
+            ->latest('id')
+            ->first();
+
+        if ($paid) {
+            return response()->json([
+                'message' => 'Esta proposta já possui pagamento aprovado.',
+            ], 422);
+        }
+
+        $data = $request->validate([
+            'billing_type' => ['required', 'in:PIX,CREDIT_CARD'],
+            'cpf' => ['nullable', 'string', 'max:14'],
+            'credit_card' => ['nullable', 'array'],
+            'credit_card.holder_name' => ['required_with:credit_card', 'string', 'max:120'],
+            'credit_card.number' => ['required_with:credit_card', 'string', 'min:13', 'max:19'],
+            'credit_card.expiry_month' => ['required_with:credit_card', 'string', 'max:2'],
+            'credit_card.expiry_year' => ['required_with:credit_card', 'string', 'max:4'],
+            'credit_card.ccv' => ['required_with:credit_card', 'string', 'min:3', 'max:4'],
+            'credit_card.cpf' => ['required_with:credit_card', 'string', 'max:14'],
+            'credit_card.postal_code' => ['nullable', 'string', 'max:12'],
+            'credit_card.address_number' => ['nullable', 'string', 'max:20'],
+            'credit_card.phone' => ['nullable', 'string', 'max:20'],
+            'credit_card.email' => ['nullable', 'email', 'max:255'],
+        ]);
+
+        $billingType = $data['billing_type'];
+        if ($billingType === ServicePaymentService::BILLING_CREDIT_CARD && empty($data['credit_card'])) {
+            return response()->json([
+                'message' => 'Informe os dados do cartão para concluir o pagamento.',
+            ], 422);
+        }
+
+        $cpf = User::normalizeCpf($data['cpf'] ?? null)
+            ?? User::normalizeCpf($data['credit_card']['cpf'] ?? null)
+            ?? User::normalizeCpf($user->cpf);
+
+        if ($cpf === null) {
+            return response()->json([
+                'message' => 'Informe o CPF para criar a cobrança.',
+            ], 422);
+        }
+
+        if (User::normalizeCpf($user->cpf) === null && ! User::cpfTaken($cpf, $user->id)) {
+            $user->forceFill(['cpf' => $cpf])->save();
+        }
+
+        // Cancela cobranças pendentes locais para forçar nova cobrança no meio escolhido.
+        ServicePayment::query()
+            ->where('service_proposal_id', $proposal->id)
+            ->where('status', 'pending')
+            ->update(['status' => 'cancelled']);
+
+        try {
+            $payment = $payments->createForAcceptedProposal(
+                $serviceRequest->fresh(),
+                $proposal->fresh(),
+                $user->fresh(),
+                $billingType,
+                $data['credit_card'] ?? null,
+                $request->ip(),
+                $cpf,
+            );
+        } catch (AsaasException $e) {
+            Log::error('Asaas: falha ao trocar forma de pagamento', [
+                'proposal_id' => $proposal->id,
+                'billing_type' => $billingType,
+                'message' => $e->getMessage(),
+                'status' => $e->status,
+            ]);
+
+            return response()->json([
+                'message' => $e->getMessage() !== ''
+                    ? $e->getMessage()
+                    : 'Não foi possível alterar a forma de pagamento. Tente novamente.',
+            ], 502);
+        }
+
+        return response()->json($this->presentPayment($payment));
+    }
+
+    /**
      * @return array<string, mixed>
      */
     protected function presentPayment(ServicePayment $payment): array

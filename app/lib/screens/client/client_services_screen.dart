@@ -14,8 +14,13 @@ import 'edit_service_sheet.dart';
 
 class ClientServicesScreen extends StatefulWidget {
   final ValueChanged<ServiceRequest>? onOpenProposals;
+  final VoidCallback? onOpenMenu;
 
-  const ClientServicesScreen({super.key, this.onOpenProposals});
+  const ClientServicesScreen({
+    super.key,
+    this.onOpenProposals,
+    this.onOpenMenu,
+  });
 
   @override
   State<ClientServicesScreen> createState() => _ClientServicesScreenState();
@@ -156,13 +161,32 @@ class _ClientServicesScreenState extends State<ClientServicesScreen>
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
             children: [
-              const Text(
-                'Meus Serviços',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
-                ),
+              Row(
+                children: [
+                  if (widget.onOpenMenu != null) ...[
+                    IconButton(
+                      onPressed: widget.onOpenMenu,
+                      tooltip: 'Menu',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 40,
+                        minHeight: 40,
+                      ),
+                      icon: const Icon(Icons.menu),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                  const Expanded(
+                    child: Text(
+                      'Meus Serviços',
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 6),
               const Text(
@@ -227,8 +251,11 @@ class _ClientServicesScreenState extends State<ClientServicesScreen>
                         request.createdAt ?? request.scheduledAt,
                       ),
                       isHistory: _tab == 1,
-                      onDetails: () =>
-                          showProfessionalRequestDetail(context, request),
+                      onDetails: () => showProfessionalRequestDetail(
+                        context,
+                        request,
+                        onOpenProposals: () => _openProposalsPage(request),
+                      ),
                       onCancel: () => _cancelRequest(request),
                       onEdit: () => _openEditSheet(request),
                       onViewProposals: () => _openAllProposalsModal(request),

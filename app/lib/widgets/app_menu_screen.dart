@@ -22,6 +22,7 @@ class AppMenuScreen extends StatelessWidget {
   final String? subtitle;
   final List<AppMenuItem> items;
   final List<AppMenuItem> footerItems;
+  final VoidCallback? onClose;
 
   const AppMenuScreen({
     super.key,
@@ -29,6 +30,7 @@ class AppMenuScreen extends StatelessWidget {
     this.subtitle,
     required this.items,
     this.footerItems = const [],
+    this.onClose,
   });
 
   @override
@@ -37,26 +39,44 @@ class AppMenuScreen extends StatelessWidget {
       color: AppColors.background,
       child: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
           children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            if (subtitle != null) ...[
-              const SizedBox(height: 6),
-              Text(
-                subtitle!,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textSecondary,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          subtitle!,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                if (onClose != null)
+                  IconButton(
+                    onPressed: onClose,
+                    tooltip: 'Fechar',
+                    icon: const Icon(Icons.close),
+                  ),
+              ],
+            ),
             const SizedBox(height: 24),
             for (final item in items) ...[
               _MenuTile(item: item),

@@ -20,8 +20,13 @@ import '../professional/professional_request_detail_sheet.dart';
 
 class RequestServiceScreen extends StatefulWidget {
   final VoidCallback? onSubmitted;
+  final VoidCallback? onOpenMenu;
 
-  const RequestServiceScreen({super.key, this.onSubmitted});
+  const RequestServiceScreen({
+    super.key,
+    this.onSubmitted,
+    this.onOpenMenu,
+  });
 
   @override
   State<RequestServiceScreen> createState() => _RequestServiceScreenState();
@@ -685,6 +690,13 @@ class _RequestServiceScreenState extends State<RequestServiceScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         automaticallyImplyLeading: false,
+        leading: widget.onOpenMenu == null
+            ? null
+            : IconButton(
+                onPressed: widget.onOpenMenu,
+                tooltip: 'Menu',
+                icon: const Icon(Icons.menu),
+              ),
         title: const Text('Solicitar Serviço'),
         actions: [
           Padding(

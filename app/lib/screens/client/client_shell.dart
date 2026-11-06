@@ -21,27 +21,38 @@ class ClientShell extends StatefulWidget {
 }
 
 class _ClientShellState extends State<ClientShell> {
-  /// 0 = Menu, 1 = Dashboard, 2 = Solicitar, 3 = Serviços, 4 = Perfil
-  int _tab = 1;
+  /// Barra inferior: 0 = Dashboard, 1 = Solicitar, 2 = Serviços, 3 = Perfil
+  int _bottomTab = 0;
 
-  /// 0 = Dashboard, 1 = Solicitar, 2 = Serviços, 3 = Propostas, 4 = Perfil
+  /// IndexedStack: 0 = Dashboard, 1 = Solicitar, 2 = Serviços, 3 = Propostas, 4 = Perfil
   int _pageIndex = 0;
 
+  bool _showingMenu = false;
+
   ServiceRequest? _proposalsFilter;
+
+  /// Aba da barra para a qual o "voltar" das propostas retorna.
+  int _proposalsReturnTab = 0;
 
   static const int _proposalsPageIndex = 3;
   static const int _profilePageIndex = 4;
 
   late final Widget _dashboardPage = ClientDashboardScreen(
-    onRequestService: () => _goToTab(2),
+    onRequestService: () => _goToBottomTab(1),
+    onOpenProposals: _openProposals,
+    onOpenMenu: _openMenu,
   );
   late final Widget _requestPage = RequestServiceScreen(
-    onSubmitted: () => _goToTab(3),
+    onSubmitted: () => _goToBottomTab(2),
+    onOpenMenu: _openMenu,
   );
   late final Widget _servicesPage = ClientServicesScreen(
     onOpenProposals: _openProposals,
+    onOpenMenu: _openMenu,
   );
-  late final Widget _profilePage = const ClientProfileScreen();
+  late final Widget _profilePage = ClientProfileScreen(
+    onOpenMenu: _openMenu,
+  );
 
   String get _userName {
     final name = SessionStore.instance.currentUser?.name.trim() ?? 'Cliente';
@@ -49,50 +60,45 @@ class _ClientShellState extends State<ClientShell> {
   }
 
   int get _bottomSelectedIndex {
-    // Propostas fica fora da barra: destaca Menu (origem da navegação).
-    if (_pageIndex == _proposalsPageIndex) return 0;
-    return _tab;
+    if (_pageIndex == _proposalsPageIndex) return _proposalsReturnTab.clamp(0, 3);
+    return _bottomTab;
   }
 
-  void _goToTab(int tab) {
+  void _openMenu() => setState(() => _showingMenu = true);
+
+  void _closeMenu() => setState(() => _showingMenu = false);
+
+  void _goToBottomTab(int tab) {
     setState(() {
-      _tab = tab;
+      _showingMenu = false;
+      _bottomTab = tab;
       _proposalsFilter = null;
-      if (tab == 0) {
-        // Volta ao menu; sai da página de propostas se estiver nela.
-        if (_pageIndex == _proposalsPageIndex) _pageIndex = 0;
-        return;
-      }
       _pageIndex = switch (tab) {
-        1 => 0,
-        2 => 1,
-        3 => 2,
-        4 => _profilePageIndex,
+        0 => 0,
+        1 => 1,
+        2 => 2,
+        3 => _profilePageIndex,
         _ => 0,
       };
     });
-    if (tab == 3) {
+    if (tab == 2) {
       ClientRequestsStore.instance.load();
     }
   }
 
   void _openProposals([ServiceRequest? request]) {
     setState(() {
+      _showingMenu = false;
+      if (_pageIndex != _proposalsPageIndex) {
+        _proposalsReturnTab = _bottomTab;
+      }
       _proposalsFilter = request;
       _pageIndex = _proposalsPageIndex;
-      // Mantém body no IndexedStack (tab != 0); a barra destaca Menu.
-      _tab = 1;
     });
     ClientRequestsStore.instance.load();
   }
 
-  void _closeProposals() {
-    if (_proposalsFilter != null) {
-      _goToTab(3); // voltou de Serviços Ativos
-    } else {
-      _goToTab(0); // voltou do Menu
-    }
-  }
+  void _closeProposals() => _goToBottomTab(_proposalsReturnTab);
 
   Future<void> _logout() async {
     await AuthService.instance.logout();
@@ -108,21 +114,22 @@ class _ClientShellState extends State<ClientShell> {
     return AppMenuScreen(
       title: 'Menu',
       subtitle: 'Olá, $_userName',
+      onClose: _closeMenu,
       items: [
         AppMenuItem(
           label: 'Dashboard',
           icon: Icons.dashboard_outlined,
-          onTap: () => _goToTab(1),
+          onTap: () => _goToBottomTab(0),
         ),
         AppMenuItem(
           label: 'Solicitar Serviço',
           icon: Icons.add_circle_outline,
-          onTap: () => _goToTab(2),
+          onTap: () => _goToBottomTab(1),
         ),
         AppMenuItem(
           label: 'Meus Serviços',
           icon: Icons.list_alt_outlined,
-          onTap: () => _goToTab(3),
+          onTap: () => _goToBottomTab(2),
         ),
         AppMenuItem(
           label: 'Propostas Recebidas',
@@ -132,7 +139,7 @@ class _ClientShellState extends State<ClientShell> {
         AppMenuItem(
           label: 'Meu Perfil',
           icon: Icons.person_outline,
-          onTap: () => _goToTab(4),
+          onTap: () => _goToBottomTab(3),
         ),
       ],
       footerItems: [
@@ -148,11 +155,9 @@ class _ClientShellState extends State<ClientShell> {
 
   @override
   Widget build(BuildContext context) {
-    final showingMenu = _tab == 0;
-
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: showingMenu
+      body: _showingMenu
           ? _menuPage()
           : IndexedStack(
               index: _pageIndex,
@@ -168,49 +173,46 @@ class _ClientShellState extends State<ClientShell> {
                 _profilePage,
               ],
             ),
-      bottomNavigationBar: NavigationBarTheme(
-        data: NavigationBarThemeData(
-          labelTextStyle: WidgetStateProperty.all(
-            const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              height: 1.1,
-              overflow: TextOverflow.ellipsis,
+      bottomNavigationBar: _showingMenu
+          ? null
+          : NavigationBarTheme(
+              data: NavigationBarThemeData(
+                labelTextStyle: WidgetStateProperty.all(
+                  const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    height: 1.1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              child: NavigationBar(
+                selectedIndex: _bottomSelectedIndex,
+                onDestinationSelected: _goToBottomTab,
+                destinations: const [
+                  NavigationDestination(
+                    icon: Icon(Icons.dashboard_outlined),
+                    selectedIcon: Icon(Icons.dashboard),
+                    label: 'Dashboard',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.add_circle_outline),
+                    selectedIcon: Icon(Icons.add_circle),
+                    label: 'Solicitar',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.list_alt_outlined),
+                    selectedIcon: Icon(Icons.list_alt),
+                    label: 'Serviços',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.person_outline),
+                    selectedIcon: Icon(Icons.person),
+                    label: 'Perfil',
+                  ),
+                ],
+              ),
             ),
-          ),
-        ),
-        child: NavigationBar(
-          selectedIndex: _bottomSelectedIndex,
-          onDestinationSelected: _goToTab,
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.menu),
-              selectedIcon: Icon(Icons.menu),
-              label: 'Menu',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.dashboard_outlined),
-              selectedIcon: Icon(Icons.dashboard),
-              label: 'Dashboard',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.add_circle_outline),
-              selectedIcon: Icon(Icons.add_circle),
-              label: 'Solicitar',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.list_alt_outlined),
-              selectedIcon: Icon(Icons.list_alt),
-              label: 'Serviços',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.person_outline),
-              selectedIcon: Icon(Icons.person),
-              label: 'Perfil',
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

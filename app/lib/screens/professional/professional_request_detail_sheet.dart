@@ -11,6 +11,7 @@ Future<bool?> showProfessionalRequestDetail(
   BuildContext context,
   ServiceRequest request, {
   bool canSendProposal = false,
+  VoidCallback? onOpenProposals,
 }) {
   return showModalBottomSheet<bool>(
     context: context,
@@ -19,6 +20,7 @@ Future<bool?> showProfessionalRequestDetail(
     builder: (context) => ProfessionalRequestDetailSheet(
       request: request,
       canSendProposal: canSendProposal,
+      onOpenProposals: onOpenProposals,
     ),
   );
 }
@@ -27,15 +29,38 @@ class ProfessionalRequestDetailSheet extends StatelessWidget {
   final ServiceRequest request;
   final bool canSendProposal;
 
+  /// Quando informado (visão do cliente), exibe o botão para abrir as propostas.
+  final VoidCallback? onOpenProposals;
+
   const ProfessionalRequestDetailSheet({
     super.key,
     required this.request,
     this.canSendProposal = false,
+    this.onOpenProposals,
   });
 
   Future<void> _sendProposal(BuildContext context) async {
     final sent = await sendProposal(context, request);
     if (sent && context.mounted) Navigator.pop(context, true);
+  }
+
+  void _openProposals(BuildContext context) {
+    Navigator.pop(context);
+    onOpenProposals?.call();
+  }
+
+  Widget _footer({required Widget child}) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          border: Border(top: BorderSide(color: AppColors.border)),
+        ),
+        child: SizedBox(width: double.infinity, height: 50, child: child),
+      ),
+    );
   }
 
   String get _urgencyLabel {
@@ -374,31 +399,42 @@ class ProfessionalRequestDetailSheet extends StatelessWidget {
             ),
           ),
           if (canSendProposal)
-            SafeArea(
-              top: false,
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                decoration: const BoxDecoration(
-                  color: AppColors.surface,
-                  border: Border(top: BorderSide(color: AppColors.border)),
+            _footer(
+              child: ElevatedButton.icon(
+                onPressed: () => _sendProposal(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.navy,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton.icon(
-                    onPressed: () => _sendProposal(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.navy,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    icon: const Icon(Icons.send_outlined, size: 18),
-                    label: const Text(
-                      'Enviar Proposta',
-                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                    ),
+                icon: const Icon(Icons.send_outlined, size: 18),
+                label: const Text(
+                  'Enviar Proposta',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                ),
+              ),
+            )
+          else if (onOpenProposals != null)
+            _footer(
+              child: ElevatedButton.icon(
+                onPressed: () => _openProposals(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: const Icon(Icons.description_outlined, size: 18),
+                label: Text(
+                  request.proposals.isEmpty
+                      ? 'Ver Propostas'
+                      : 'Ver Propostas (${request.proposals.length})',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
                   ),
                 ),
               ),

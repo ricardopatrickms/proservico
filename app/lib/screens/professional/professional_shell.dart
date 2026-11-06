@@ -8,6 +8,7 @@ import '../auth/welcome_screen.dart';
 import 'professional_dashboard_screen.dart';
 import 'professional_history_screen.dart';
 import 'professional_in_progress_screen.dart';
+import 'professional_placeholder_screen.dart';
 import 'professional_profile_screen.dart';
 import 'professional_received_screen.dart';
 
@@ -30,8 +31,7 @@ class _ProfessionalShellState extends State<ProfessionalShell> {
   ProfessionalNav _nav = ProfessionalNav.dashboard;
   static const double _sidebarBreakpoint = 900;
 
-  /// Em mobile: 0 = Menu, 1 = Dashboard, 2 = Histórico, 3 = Perfil
-  int _mobileTab = 1;
+  bool _showingMenu = false;
 
   String get _userName {
     final name = SessionStore.instance.currentUser?.name.trim() ?? 'Profissional';
@@ -62,38 +62,31 @@ class _ProfessionalShellState extends State<ProfessionalShell> {
     );
   }
 
+  void _openMenu() => setState(() => _showingMenu = true);
+
+  void _closeMenu() => setState(() => _showingMenu = false);
+
   void _selectNav(ProfessionalNav nav) {
     setState(() {
+      _showingMenu = false;
       _nav = nav;
-      // Páginas fora da barra: fica no conteúdo com a aba do atalho mais próximo.
-      // Menu (0) só quando o usuário abre a tela de menu de propósito.
-      _mobileTab = switch (nav) {
-        ProfessionalNav.dashboard => 1,
-        ProfessionalNav.history => 2,
-        ProfessionalNav.profile => 3,
-        ProfessionalNav.received ||
-        ProfessionalNav.inProgress =>
-          1, // Dashboard como âncora visual; o body mostra a página escolhida
-      };
     });
   }
 
   void _onMobileDestinationSelected(int i) {
     setState(() {
-      _mobileTab = i;
-      if (i == 0) return;
-      if (i == 1) _nav = ProfessionalNav.dashboard;
-      if (i == 2) _nav = ProfessionalNav.history;
-      if (i == 3) _nav = ProfessionalNav.profile;
+      _showingMenu = false;
+      if (i == 0) _nav = ProfessionalNav.dashboard;
+      if (i == 1) _nav = ProfessionalNav.history;
+      if (i == 2) _nav = ProfessionalNav.profile;
     });
   }
 
   int _selectedBottomIndex() {
-    if (_mobileTab == 0) return 0;
     return switch (_nav) {
-      ProfessionalNav.history => 2,
-      ProfessionalNav.profile => 3,
-      _ => 1,
+      ProfessionalNav.history => 1,
+      ProfessionalNav.profile => 2,
+      _ => 0,
     };
   }
 
@@ -101,6 +94,7 @@ class _ProfessionalShellState extends State<ProfessionalShell> {
     return AppMenuScreen(
       title: 'Menu',
       subtitle: 'Olá, $_userName',
+      onClose: _closeMenu,
       items: [
         AppMenuItem(
           label: 'Dashboard',
@@ -160,18 +154,18 @@ class _ProfessionalShellState extends State<ProfessionalShell> {
                   Expanded(child: _pageFor(_nav)),
                 ],
               )
-            : (_mobileTab == 0 ? _mobileMenu() : _pageFor(_nav)),
-        bottomNavigationBar: wide
+            : (_showingMenu
+                ? _mobileMenu()
+                : ProfessionalMenuScope(
+                    onOpenMenu: _openMenu,
+                    child: _pageFor(_nav),
+                  )),
+        bottomNavigationBar: wide || _showingMenu
             ? null
             : NavigationBar(
                 selectedIndex: _selectedBottomIndex(),
                 onDestinationSelected: _onMobileDestinationSelected,
                 destinations: const [
-                  NavigationDestination(
-                    icon: Icon(Icons.menu),
-                    selectedIcon: Icon(Icons.menu),
-                    label: 'Menu',
-                  ),
                   NavigationDestination(
                     icon: Icon(Icons.dashboard_outlined),
                     selectedIcon: Icon(Icons.dashboard),

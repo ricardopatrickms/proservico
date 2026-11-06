@@ -18,7 +18,9 @@ import '../../widgets/phone_input_formatter.dart';
 enum _PickSource { camera, gallery }
 
 class ClientProfileScreen extends StatefulWidget {
-  const ClientProfileScreen({super.key});
+  final VoidCallback? onOpenMenu;
+
+  const ClientProfileScreen({super.key, this.onOpenMenu});
 
   @override
   State<ClientProfileScreen> createState() => _ClientProfileScreenState();
@@ -408,13 +410,32 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
           children: [
-            const Text(
-              'Meu Perfil',
-              style: TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
-              ),
+            Row(
+              children: [
+                if (widget.onOpenMenu != null) ...[
+                  IconButton(
+                    onPressed: widget.onOpenMenu,
+                    tooltip: 'Menu',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 40,
+                      minHeight: 40,
+                    ),
+                    icon: const Icon(Icons.menu),
+                  ),
+                  const SizedBox(width: 4),
+                ],
+                const Expanded(
+                  child: Text(
+                    'Meu Perfil',
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 6),
             const Text(

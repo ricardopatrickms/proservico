@@ -262,7 +262,8 @@ class _ProfessionalDashboardScreenState
     }();
 
     return ProfessionalPageScaffold(
-      title: 'Olá, $firstName! 👋',
+      title: 'Painel Profissional',
+      headline: 'Olá, $firstName! 👋',
       subtitle: 'Bem-vindo ao seu painel profissional',
       child: RefreshIndicator(
         onRefresh: _load,
@@ -271,7 +272,7 @@ class _ProfessionalDashboardScreenState
             final wide = constraints.maxWidth >= 900;
             return ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
               children: [
                 if (user != null && !user.approved)
                   Container(

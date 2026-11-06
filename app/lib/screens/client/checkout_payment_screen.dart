@@ -24,11 +24,15 @@ class CheckoutPaymentScreen extends StatefulWidget {
   /// Reabre a tela só para ver/copiar o PIX (ou renovar se vencido).
   final bool resumePayment;
 
+  /// Abre direto no formulário para trocar PIX ↔ cartão.
+  final bool changePaymentMethod;
+
   const CheckoutPaymentScreen({
     super.key,
     required this.request,
     required this.proposal,
     this.resumePayment = false,
+    this.changePaymentMethod = false,
   });
 
   @override
@@ -56,8 +60,16 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
   Timer? _statusPoll;
   bool _polling = false;
 
+  /// Proposta já aceita: formulário só troca/recria a cobrança pendente.
+  bool _changingMethod = false;
+
   ServiceProposal get proposal => widget.proposal;
   ServiceRequest get request => widget.request;
+
+  bool get _proposalAlreadyAccepted =>
+      proposal.status == ProposalStatus.accepted ||
+      widget.resumePayment ||
+      _changingMethod;
 
   double get _total {
     return proposal.clientAmount ?? proposal.amount;
@@ -66,7 +78,16 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
   @override
   void initState() {
     super.initState();
-    _step = widget.resumePayment ? _CheckoutStep.loading : _CheckoutStep.form;
+    _changingMethod = widget.resumePayment || widget.changePaymentMethod;
+    final currentBilling =
+        (proposal.payment?.billingType ?? 'PIX').toUpperCase();
+    if (widget.changePaymentMethod) {
+      _billingType =
+          currentBilling == 'CREDIT_CARD' ? 'PIX' : 'CREDIT_CARD';
+      _step = _CheckoutStep.form;
+    } else {
+      _step = widget.resumePayment ? _CheckoutStep.loading : _CheckoutStep.form;
+    }
     final user = SessionStore.instance.currentUser;
     _cardName.text = (user?.name ?? '').toUpperCase();
     _phone.text = PhoneInputFormatter.formatPhone(
@@ -76,7 +97,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
       CepInputFormatter.digitsOnly(request.cep ?? ''),
     );
     _addressNumber.text = request.number ?? '';
-    if (widget.resumePayment) {
+    if (widget.resumePayment && !widget.changePaymentMethod) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadExistingPayment());
     }
   }
@@ -218,18 +239,28 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
 
     setState(() => _submitting = true);
     try {
-      final updated = await ServiceProposalService.instance.updateStatus(
-        serviceRequestId: request.id,
-        proposalId: proposal.id,
-        status: 'accepted',
-        billingType: _billingType,
-        cpf: CpfInputFormatter.digitsOnly(_cpf.text),
-        creditCard: creditCard,
-      );
+      final ServicePayment? payment;
+      if (_proposalAlreadyAccepted) {
+        payment = await ServiceProposalService.instance.changePayment(
+          serviceRequestId: request.id,
+          proposalId: proposal.id,
+          billingType: _billingType,
+          cpf: CpfInputFormatter.digitsOnly(_cpf.text),
+          creditCard: creditCard,
+        );
+      } else {
+        final updated = await ServiceProposalService.instance.updateStatus(
+          serviceRequestId: request.id,
+          proposalId: proposal.id,
+          status: 'accepted',
+          billingType: _billingType,
+          cpf: CpfInputFormatter.digitsOnly(_cpf.text),
+          creditCard: creditCard,
+        );
+        payment = updated.payment;
+      }
       await ClientRequestsStore.instance.load();
       if (!mounted) return;
-
-      final payment = updated.payment;
 
       if (payment == null) {
         showAppSnackBar(context, 'Proposta aceita.');
@@ -239,9 +270,10 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
 
       setState(() {
         _payment = payment;
-        _resultMessage = _messageForPayment(payment);
+        _resultMessage = _messageForPayment(payment!);
         _step = _CheckoutStep.result;
         _submitting = false;
+        _changingMethod = true;
       });
       if (payment.isPaid) {
         _stopStatusPoll();
@@ -257,6 +289,16 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
       setState(() => _submitting = false);
       showAppSnackBar(context, 'Não foi possível concluir o pagamento.');
     }
+  }
+
+  void _openChangePaymentMethod() {
+    final current = (_payment?.billingType ?? _billingType).toUpperCase();
+    setState(() {
+      _stopStatusPoll();
+      _changingMethod = true;
+      _billingType = current == 'CREDIT_CARD' ? 'PIX' : 'CREDIT_CARD';
+      _step = _CheckoutStep.form;
+    });
   }
 
   String _messageForPayment(ServicePayment payment) {
@@ -311,15 +353,32 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(
-          _step == _CheckoutStep.form
-              ? 'Pagamento'
-              : (_step == _CheckoutStep.loading ? 'Carregando' : 'Pagamento PIX'),
+          _step == _CheckoutStep.loading
+              ? 'Carregando'
+              : _step == _CheckoutStep.form
+                  ? (_changingMethod
+                      ? 'Trocar forma de pagamento'
+                      : 'Pagamento')
+                  : ((_payment?.billingType ?? _billingType).toUpperCase() ==
+                          'CREDIT_CARD'
+                      ? 'Pagamento no cartão'
+                      : 'Pagamento PIX'),
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: _submitting
               ? null
-              : () => Navigator.pop(context, _step == _CheckoutStep.result),
+              : () {
+                  if (_step == _CheckoutStep.form &&
+                      _changingMethod &&
+                      _payment != null &&
+                      !(_payment!.isPaid)) {
+                    setState(() => _step = _CheckoutStep.result);
+                    _startStatusPoll();
+                    return;
+                  }
+                  Navigator.pop(context, _step == _CheckoutStep.result);
+                },
         ),
       ),
       body: SafeArea(
@@ -550,8 +609,10 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                       )
                     : Text(
                         _billingType == 'PIX'
-                            ? 'Gerar PIX'
-                            : 'Pagar agora',
+                            ? (_changingMethod ? 'Gerar novo PIX' : 'Gerar PIX')
+                            : (_changingMethod
+                                ? 'Pagar com cartão'
+                                : 'Pagar agora'),
                       ),
               ),
             ],
@@ -703,6 +764,18 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                     onPressed: _submitting ? null : _renewPix,
                     icon: const Icon(Icons.qr_code_2),
                     label: const Text('Gerar novo PIX'),
+                  ),
+                ],
+                if (!isPaid) ...[
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    onPressed: _submitting ? null : _openChangePaymentMethod,
+                    icon: const Icon(Icons.swap_horiz),
+                    label: Text(
+                      isCard
+                          ? 'Trocar para PIX'
+                          : 'Trocar para cartão de crédito',
+                    ),
                   ),
                 ],
               ],

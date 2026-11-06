@@ -66,4 +66,24 @@ class ServiceProposalService {
     );
     return ServicePayment.fromJson(data);
   }
+
+  /// Troca/recria a cobrança de uma proposta já aceita (aguardando pagamento).
+  Future<ServicePayment> changePayment({
+    required String serviceRequestId,
+    required String proposalId,
+    required String billingType,
+    String? cpf,
+    CreditCardFormData? creditCard,
+  }) async {
+    final data = await _api.post(
+      '/service-requests/$serviceRequestId/proposals/$proposalId/payment',
+      auth: true,
+      body: {
+        'billing_type': billingType,
+        if (cpf != null && cpf.isNotEmpty) 'cpf': cpf,
+        if (creditCard != null) 'credit_card': creditCard.toJson(),
+      },
+    );
+    return ServicePayment.fromJson(data);
+  }
 }
