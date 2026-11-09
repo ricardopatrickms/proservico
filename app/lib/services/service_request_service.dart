@@ -191,4 +191,35 @@ class ServiceRequestService {
     );
     return ServiceRequest.fromJson(data);
   }
+
+  Future<ServiceRequest> start(String id) async {
+    final data = await _api.post(
+      '/service-requests/$id/start',
+      auth: true,
+    );
+    return ServiceRequest.fromJson(data);
+  }
+
+  Future<ServiceRequest> complete(
+    String id, {
+    required Map<String, bool> checklist,
+    required List<String> photoPaths,
+    String? notes,
+  }) async {
+    final fields = <String, String>{
+      for (final entry in checklist.entries)
+        'checklist[${entry.key}]': entry.value ? '1' : '0',
+      if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+    };
+
+    final data = await _api.postMultipart(
+      '/service-requests/$id/complete',
+      auth: true,
+      fields: fields,
+      fileLists: {
+        'photos': photoPaths,
+      },
+    );
+    return ServiceRequest.fromJson(data);
+  }
 }

@@ -303,6 +303,89 @@ class ServiceRequestController extends Controller
         return response()->json($serviceRequest->fresh()->load(['client', 'professional']));
     }
 
+    public function start(ServiceRequest $serviceRequest): JsonResponse
+    {
+        $user = Auth::guard('api')->user();
+
+        if (! $user->isProfessional() || (int) $serviceRequest->professional_id !== (int) $user->id) {
+            return response()->json(['message' => 'Apenas o profissional responsável pode iniciar o serviço.'], 403);
+        }
+
+        if ($serviceRequest->status !== 'in_progress') {
+            return response()->json(['message' => 'Este serviço não está disponível para início.'], 422);
+        }
+
+        if ($serviceRequest->started_at !== null) {
+            return response()->json(['message' => 'Este serviço já foi iniciado.'], 422);
+        }
+
+        $serviceRequest->forceFill(['started_at' => now()])->save();
+
+        return response()->json(
+            $serviceRequest->fresh()->load(['client', 'professional', 'proposals.professional:id,name,email,phone'])
+        );
+    }
+
+    public function complete(Request $request, ServiceRequest $serviceRequest): JsonResponse
+    {
+        $user = Auth::guard('api')->user();
+
+        if (! $user->isProfessional() || (int) $serviceRequest->professional_id !== (int) $user->id) {
+            return response()->json(['message' => 'Apenas o profissional responsável pode finalizar o serviço.'], 403);
+        }
+
+        if ($serviceRequest->status !== 'in_progress') {
+            return response()->json(['message' => 'Este serviço não está em andamento.'], 422);
+        }
+
+        if ($serviceRequest->started_at === null) {
+            return response()->json(['message' => 'Inicie o serviço antes de finalizá-lo.'], 422);
+        }
+
+        if ($serviceRequest->status === 'completed' || $serviceRequest->completed_at !== null) {
+            return response()->json(['message' => 'Este serviço já foi finalizado.'], 422);
+        }
+
+        $data = $request->validate([
+            'checklist' => ['required', 'array'],
+            'checklist.service_done' => ['required', 'accepted'],
+            'checklist.site_ok' => ['required', 'accepted'],
+            'checklist.client_informed' => ['required', 'accepted'],
+            'notes' => ['nullable', 'string', 'max:2000'],
+            'photos' => ['required', 'array', 'min:1', 'max:8'],
+            'photos.*' => ['required', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
+        ], [
+            'checklist.service_done.accepted' => 'Confirme que o serviço foi concluído conforme combinado.',
+            'checklist.site_ok.accepted' => 'Confirme que o local foi deixado em ordem.',
+            'checklist.client_informed.accepted' => 'Confirme que o cliente foi informado da conclusão.',
+            'photos.required' => 'Envie ao menos uma foto da conclusão.',
+            'photos.min' => 'Envie ao menos uma foto da conclusão.',
+        ]);
+
+        $folder = 'service-requests/'.$serviceRequest->id.'/completion/'.now()->format('YmdHis');
+        $storedPhotos = [];
+        foreach ($request->file('photos') as $photo) {
+            $storedPhotos[] = $photo->store($folder, 'public');
+        }
+
+        $checklist = [];
+        foreach (ServiceRequest::COMPLETION_CHECKLIST_KEYS as $key) {
+            $checklist[$key] = filter_var($data['checklist'][$key] ?? false, FILTER_VALIDATE_BOOLEAN);
+        }
+
+        $serviceRequest->forceFill([
+            'status' => 'completed',
+            'completed_at' => now(),
+            'completion_checklist' => $checklist,
+            'completion_notes' => $data['notes'] ?? null,
+            'completion_photos' => $storedPhotos,
+        ])->save();
+
+        return response()->json(
+            $serviceRequest->fresh()->load(['client', 'professional', 'proposals.professional:id,name,email,phone'])
+        );
+    }
+
     protected function authorizeView(ServiceRequest $serviceRequest): void
     {
         $user = Auth::guard('api')->user();

@@ -39,6 +39,8 @@ Route::middleware(['auth:api', 'account.active'])->group(function () {
     Route::get('service-requests/{serviceRequest}', [ServiceRequestController::class, 'show']);
     Route::put('service-requests/{serviceRequest}', [ServiceRequestController::class, 'update']);
     Route::patch('service-requests/{serviceRequest}/status', [ServiceRequestController::class, 'updateStatus']);
+    Route::post('service-requests/{serviceRequest}/start', [ServiceRequestController::class, 'start']);
+    Route::post('service-requests/{serviceRequest}/complete', [ServiceRequestController::class, 'complete']);
 
     Route::get('service-requests/{serviceRequest}/proposals', [ServiceProposalController::class, 'index']);
     Route::post('service-requests/{serviceRequest}/proposals', [ServiceProposalController::class, 'store']);

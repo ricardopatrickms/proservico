@@ -4,7 +4,9 @@ import '../../models/service_request.dart';
 import '../../services/api_exception.dart';
 import '../../services/service_request_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/helpers.dart';
 import '../client/service_detail_screen.dart';
+import 'complete_service_sheet.dart';
 import 'professional_placeholder_screen.dart';
 
 class ProfessionalInProgressScreen extends StatefulWidget {
@@ -22,6 +24,7 @@ class _ProfessionalInProgressScreenState
   List<ServiceRequest> _requests = [];
   bool _loading = true;
   String? _error;
+  String? _busyId;
 
   @override
   void initState() {
@@ -58,24 +61,49 @@ class _ProfessionalInProgressScreenState
     }
   }
 
-  String _statusLabel(ServiceStatus status) {
-    return switch (status) {
-      ServiceStatus.pending => 'Aguardando',
-      ServiceStatus.awaitingPayment => 'Aguardando pagamento',
-      ServiceStatus.inProgress => 'Em andamento',
-      ServiceStatus.completed => 'Concluído',
-      ServiceStatus.cancelled => 'Cancelado',
-    };
+  Future<void> _start(ServiceRequest request) async {
+    setState(() => _busyId = request.id);
+    try {
+      final updated = await _service.start(request.id);
+      if (!mounted) return;
+      setState(() {
+        _requests = _requests
+            .map((r) => r.id == updated.id ? updated : r)
+            .toList();
+        _busyId = null;
+      });
+      showAppSnackBar(context, 'Serviço iniciado.');
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _busyId = null);
+      showAppSnackBar(context, e.displayMessage);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _busyId = null);
+      showAppSnackBar(context, 'Não foi possível iniciar o serviço.');
+    }
   }
 
-  Color _statusColor(ServiceStatus status) {
-    return switch (status) {
-      ServiceStatus.pending => AppColors.warning,
-      ServiceStatus.awaitingPayment => AppColors.warning,
-      ServiceStatus.inProgress => AppColors.primary,
-      ServiceStatus.completed => AppColors.success,
-      ServiceStatus.cancelled => AppColors.danger,
-    };
+  Future<void> _finish(ServiceRequest request) async {
+    final updated = await showCompleteServiceSheet(
+      context: context,
+      request: request,
+    );
+    if (updated == null || !mounted) return;
+    setState(() {
+      _requests = _requests.where((r) => r.id != updated.id).toList();
+    });
+    showAppSnackBar(context, 'Serviço finalizado.');
+  }
+
+  String _statusLabel(ServiceRequest request) {
+    if (request.hasStarted) return 'Em execução';
+    return 'Aguardando início';
+  }
+
+  Color _statusColor(ServiceRequest request) {
+    if (request.hasStarted) return AppColors.primary;
+    return AppColors.warning;
   }
 
   String _dateLabel(DateTime date) {
@@ -88,7 +116,7 @@ class _ProfessionalInProgressScreenState
   Widget build(BuildContext context) {
     return ProfessionalPageScaffold(
       title: 'Serviços em Andamento',
-      subtitle: 'Acompanhe os serviços em execução',
+      subtitle: 'Inicie e finalize os serviços em execução',
       child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
@@ -140,7 +168,7 @@ class _ProfessionalInProgressScreenState
                     ),
                     SizedBox(height: 8),
                     Text(
-                      'Quando você aceitar um pedido, ele aparecerá aqui.',
+                      'Quando um pagamento for confirmado, o serviço aparecerá aqui.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: AppColors.textSecondary),
                     ),
@@ -153,9 +181,10 @@ class _ProfessionalInProgressScreenState
                   padding: const EdgeInsets.only(bottom: 12),
                   child: _InProgressCard(
                     request: request,
-                    statusLabel: _statusLabel(request.status),
-                    statusColor: _statusColor(request.status),
+                    statusLabel: _statusLabel(request),
+                    statusColor: _statusColor(request),
                     dateLabel: _dateLabel(request.scheduledAt),
+                    busy: _busyId == request.id,
                     onDetails: () {
                       Navigator.push(
                         context,
@@ -164,6 +193,12 @@ class _ProfessionalInProgressScreenState
                         ),
                       );
                     },
+                    onStart: request.hasStarted
+                        ? null
+                        : () => _start(request),
+                    onFinish: request.hasStarted
+                        ? () => _finish(request)
+                        : null,
                   ),
                 ),
               ),
@@ -200,14 +235,20 @@ class _InProgressCard extends StatelessWidget {
   final String statusLabel;
   final Color statusColor;
   final String dateLabel;
+  final bool busy;
   final VoidCallback onDetails;
+  final VoidCallback? onStart;
+  final VoidCallback? onFinish;
 
   const _InProgressCard({
     required this.request,
     required this.statusLabel,
     required this.statusColor,
     required this.dateLabel,
+    required this.busy,
     required this.onDetails,
+    this.onStart,
+    this.onFinish,
   });
 
   @override
@@ -235,7 +276,8 @@ class _InProgressCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: statusColor,
                   borderRadius: BorderRadius.circular(6),
@@ -311,14 +353,32 @@ class _InProgressCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 16),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
               _ActionButton(
                 label: 'Ver detalhes',
                 icon: Icons.visibility_outlined,
                 color: AppColors.primary,
-                onTap: onDetails,
+                onTap: busy ? null : onDetails,
               ),
+              if (onStart != null)
+                _ActionButton(
+                  label: busy ? 'Iniciando...' : 'Iniciar serviço',
+                  icon: Icons.play_arrow_rounded,
+                  color: AppColors.success,
+                  filled: true,
+                  onTap: busy ? null : onStart,
+                ),
+              if (onFinish != null)
+                _ActionButton(
+                  label: 'Finalizar serviço',
+                  icon: Icons.check_circle_outline,
+                  color: AppColors.primary,
+                  filled: true,
+                  onTap: busy ? null : onFinish,
+                ),
             ],
           ),
         ],
@@ -331,42 +391,52 @@ class _ActionButton extends StatelessWidget {
   final String label;
   final IconData icon;
   final Color color;
-  final VoidCallback onTap;
+  final bool filled;
+  final VoidCallback? onTap;
 
   const _ActionButton({
     required this.label,
     required this.icon,
     required this.color,
-    required this.onTap,
+    this.filled = false,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    final fg = filled ? Colors.white : color;
+    final bg = filled ? color : Colors.transparent;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: color),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 16, color: color),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: color,
+        child: Opacity(
+          opacity: enabled ? 1 : 0.55,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: color),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 16, color: fg),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: fg,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
