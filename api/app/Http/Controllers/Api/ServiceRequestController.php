@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\ProfessionalPayout;
+use App\Models\ServicePayment;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use App\Support\ProposalPresenter;
@@ -351,6 +353,8 @@ class ServiceRequestController extends Controller
             'checklist.service_done' => ['required', 'accepted'],
             'checklist.site_ok' => ['required', 'accepted'],
             'checklist.client_informed' => ['required', 'accepted'],
+            'checklist.materials_used' => ['required', 'in:0,1,true,false'],
+            'materials' => ['nullable', 'string', 'max:1000'],
             'notes' => ['nullable', 'string', 'max:2000'],
             'photos' => ['required', 'array', 'min:1', 'max:8'],
             'photos.*' => ['required', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
@@ -358,9 +362,25 @@ class ServiceRequestController extends Controller
             'checklist.service_done.accepted' => 'Confirme que o serviço foi concluído conforme combinado.',
             'checklist.site_ok.accepted' => 'Confirme que o local foi deixado em ordem.',
             'checklist.client_informed.accepted' => 'Confirme que o cliente foi informado da conclusão.',
+            'checklist.materials_used.required' => 'Informe se foram usados materiais.',
             'photos.required' => 'Envie ao menos uma foto da conclusão.',
             'photos.min' => 'Envie ao menos uma foto da conclusão.',
         ]);
+
+        $materialsUsed = filter_var(
+            $data['checklist']['materials_used'] ?? false,
+            FILTER_VALIDATE_BOOLEAN
+        );
+        $materials = trim((string) ($data['materials'] ?? ''));
+
+        if ($materialsUsed && $materials === '') {
+            return response()->json([
+                'message' => 'Informe quais materiais foram usados.',
+                'errors' => [
+                    'materials' => ['Informe quais materiais foram usados.'],
+                ],
+            ], 422);
+        }
 
         $folder = 'service-requests/'.$serviceRequest->id.'/completion/'.now()->format('YmdHis');
         $storedPhotos = [];
@@ -372,6 +392,9 @@ class ServiceRequestController extends Controller
         foreach (ServiceRequest::COMPLETION_CHECKLIST_KEYS as $key) {
             $checklist[$key] = filter_var($data['checklist'][$key] ?? false, FILTER_VALIDATE_BOOLEAN);
         }
+        if ($materialsUsed) {
+            $checklist['materials_list'] = $materials;
+        }
 
         $serviceRequest->forceFill([
             'status' => 'completed',
@@ -381,9 +404,61 @@ class ServiceRequestController extends Controller
             'completion_photos' => $storedPhotos,
         ])->save();
 
+        $this->createProfessionalPayout($serviceRequest->fresh());
+
         return response()->json(
             $serviceRequest->fresh()->load(['client', 'professional', 'proposals.professional:id,name,email,phone'])
         );
+    }
+
+    /**
+     * Gera solicitação pendente de repasse ao profissional após a conclusão.
+     */
+    protected function createProfessionalPayout(ServiceRequest $serviceRequest): void
+    {
+        if ($serviceRequest->professional_id === null) {
+            return;
+        }
+
+        if (ProfessionalPayout::query()->where('service_request_id', $serviceRequest->id)->exists()) {
+            return;
+        }
+
+        $payment = ServicePayment::query()
+            ->where('service_request_id', $serviceRequest->id)
+            ->where('status', 'paid')
+            ->latest('id')
+            ->first();
+
+        $amount = $payment?->professional_amount;
+        if ($amount === null) {
+            $accepted = $serviceRequest->proposals()
+                ->where('status', 'accepted')
+                ->latest('id')
+                ->first();
+            $amount = $accepted?->getRawOriginal('amount') ?? $accepted?->amount;
+        }
+
+        if ($amount === null) {
+            return;
+        }
+
+        $profile = $serviceRequest->professional?->professionalProfile
+            ?? User::query()->with('professionalProfile')->find($serviceRequest->professional_id)?->professionalProfile;
+
+        ProfessionalPayout::create([
+            'service_request_id' => $serviceRequest->id,
+            'service_payment_id' => $payment?->id,
+            'professional_id' => $serviceRequest->professional_id,
+            'amount' => $amount,
+            'status' => 'pending',
+            'pix_type' => $profile?->pix_type,
+            'pix_key' => $profile?->pix_key,
+            'bank' => $profile?->bank,
+            'agency' => $profile?->agency,
+            'account' => $profile?->account,
+            'account_type' => $profile?->account_type,
+        ]);
     }
 
     protected function authorizeView(ServiceRequest $serviceRequest): void

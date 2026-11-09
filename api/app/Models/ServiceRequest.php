@@ -51,6 +51,7 @@ class ServiceRequest extends Model
         'service_done',
         'site_ok',
         'client_informed',
+        'materials_used',
     ];
 
     protected $appends = [

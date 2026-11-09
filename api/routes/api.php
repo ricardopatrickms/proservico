@@ -62,6 +62,8 @@ Route::middleware(['auth:api', 'account.active'])->group(function () {
         Route::get('dashboard', [AdminController::class, 'dashboard']);
         Route::get('analytics', [AdminController::class, 'analytics']);
         Route::get('billing', [AdminController::class, 'billing']);
+        Route::get('payouts', [AdminController::class, 'payouts']);
+        Route::patch('payouts/{payout}', [AdminController::class, 'updatePayout']);
         Route::get('users', [AdminController::class, 'users']);
         Route::get('users/{user}', [AdminController::class, 'showUser']);
         Route::patch('users/{user}/approval', [AdminController::class, 'setApproval']);

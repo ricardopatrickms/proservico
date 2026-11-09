@@ -205,11 +205,14 @@ class ServiceRequestService {
     required Map<String, bool> checklist,
     required List<String> photoPaths,
     String? notes,
+    String? materials,
   }) async {
     final fields = <String, String>{
       for (final entry in checklist.entries)
         'checklist[${entry.key}]': entry.value ? '1' : '0',
       if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+      if (materials != null && materials.trim().isNotEmpty)
+        'materials': materials.trim(),
     };
 
     final data = await _api.postMultipart(

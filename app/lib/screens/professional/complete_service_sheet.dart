@@ -48,9 +48,12 @@ class _CompleteServiceSheetState extends State<_CompleteServiceSheet> {
   static const _maxPhotoBytes = 5 * 1024 * 1024;
 
   final _notes = TextEditingController();
+  final _materials = TextEditingController();
   final Map<String, bool> _checklist = {
     for (final key in completionChecklistItems.keys) key: false,
   };
+  /// null = ainda não respondeu; true = Sim; false = Não.
+  bool? _materialsUsed;
   final List<XFile> _photos = [];
   bool _submitting = false;
   bool _attempted = false;
@@ -58,10 +61,15 @@ class _CompleteServiceSheetState extends State<_CompleteServiceSheet> {
   @override
   void dispose() {
     _notes.dispose();
+    _materials.dispose();
     super.dispose();
   }
 
   bool get _checklistOk => _checklist.values.every((checked) => checked);
+  bool get _materialsAnswered => _materialsUsed != null;
+  bool get _materialsListOk =>
+      _materialsUsed != true || _materials.text.trim().isNotEmpty;
+  bool get _materialsOk => _materialsAnswered && _materialsListOk;
   bool get _photosOk => _photos.isNotEmpty;
 
   Future<ImageSource?> _askPhotoSource() {
@@ -155,12 +163,16 @@ class _CompleteServiceSheetState extends State<_CompleteServiceSheet> {
 
   Future<void> _submit() async {
     setState(() => _attempted = true);
-    if (!_checklistOk || !_photosOk) {
+    if (!_checklistOk || !_materialsOk || !_photosOk) {
       showAppSnackBar(
         context,
         !_checklistOk
             ? 'Marque todos os itens do checklist.'
-            : 'Envie ao menos uma foto da conclusão.',
+            : !_materialsAnswered
+                ? 'Responda se usou materiais: Sim ou Não.'
+                : !_materialsListOk
+                    ? 'Descreva os materiais usados.'
+                    : 'Envie ao menos uma foto da conclusão.',
       );
       return;
     }
@@ -169,9 +181,13 @@ class _CompleteServiceSheetState extends State<_CompleteServiceSheet> {
     try {
       final updated = await ServiceRequestService.instance.complete(
         widget.request.id,
-        checklist: _checklist,
+        checklist: {
+          ..._checklist,
+          'materials_used': _materialsUsed!,
+        },
         photoPaths: _photos.map((p) => p.path).toList(),
         notes: _notes.text,
+        materials: _materialsUsed == true ? _materials.text : null,
       );
       if (!mounted) return;
       Navigator.pop(context, updated);
@@ -247,7 +263,84 @@ class _CompleteServiceSheetState extends State<_CompleteServiceSheet> {
               ),
             const SizedBox(height: 8),
             const Text(
-              'Fotos da conclusão',
+              'Usou materiais neste serviço? *',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            ),
+            Row(
+              children: [
+                Radio<bool>(
+                  value: true,
+                  groupValue: _materialsUsed,
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  onChanged: _submitting
+                      ? null
+                      : (value) {
+                          setState(() => _materialsUsed = value);
+                        },
+                ),
+                GestureDetector(
+                  onTap: _submitting
+                      ? null
+                      : () => setState(() => _materialsUsed = true),
+                  child: const Text('Sim', style: TextStyle(fontSize: 14)),
+                ),
+                const SizedBox(width: 16),
+                Radio<bool>(
+                  value: false,
+                  groupValue: _materialsUsed,
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  onChanged: _submitting
+                      ? null
+                      : (value) {
+                          setState(() {
+                            _materialsUsed = value;
+                            _materials.clear();
+                          });
+                        },
+                ),
+                GestureDetector(
+                  onTap: _submitting
+                      ? null
+                      : () => setState(() {
+                            _materialsUsed = false;
+                            _materials.clear();
+                          }),
+                  child: const Text('Não', style: TextStyle(fontSize: 14)),
+                ),
+              ],
+            ),
+            if (_attempted && !_materialsAnswered)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 4),
+                child: Text(
+                  'Responda Sim ou Não.',
+                  style: TextStyle(color: AppColors.danger, fontSize: 13),
+                ),
+              ),
+            if (_materialsUsed == true) ...[
+              TextField(
+                controller: _materials,
+                enabled: !_submitting,
+                maxLines: 2,
+                maxLength: 1000,
+                decoration: InputDecoration(
+                  labelText: 'Quais materiais foram usados? *',
+                  hintText: 'Ex.: parafusos, fita isolante, silicone',
+                  alignLabelWithHint: true,
+                  errorText: _attempted && !_materialsListOk
+                      ? 'Descreva os materiais usados'
+                      : null,
+                ),
+                onChanged: (_) {
+                  if (_attempted) setState(() {});
+                },
+              ),
+            ],
+            const SizedBox(height: 16),
+            const Text(
+              'Fotos da conclusão *',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),

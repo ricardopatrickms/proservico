@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\UserStatus;
 use App\Http\Controllers\Controller;
+use App\Models\ProfessionalPayout;
 use App\Models\ServicePayment;
 use App\Models\ServiceRequest;
 use App\Models\User;
@@ -536,6 +537,116 @@ class AdminController extends Controller
         }
 
         return $city !== '' ? $city : 'Não informado';
+    }
+
+    public function payouts(Request $request): JsonResponse
+    {
+        $this->ensureAdmin();
+
+        $status = $request->query('status');
+
+        $query = ProfessionalPayout::query()
+            ->with([
+                'serviceRequest:id,title,category,city,status,completed_at',
+                'professional:id,name,email,phone',
+                'professional.professionalProfile:id,user_id,pix_type,pix_key,bank,agency,account,account_type',
+                'servicePayment:id,total_amount,professional_amount,platform_fee,billing_type,status',
+            ])
+            ->latest('id');
+
+        if (is_string($status) && in_array($status, ['pending', 'paid', 'cancelled'], true)) {
+            $query->where('status', $status);
+        }
+
+        $items = $query->limit(100)->get()->map(fn (ProfessionalPayout $payout) => $this->presentPayout($payout));
+
+        return response()->json([
+            'pending_count' => ProfessionalPayout::query()->where('status', 'pending')->count(),
+            'pending_amount' => (float) ProfessionalPayout::query()->where('status', 'pending')->sum('amount'),
+            'items' => $items,
+        ]);
+    }
+
+    public function updatePayout(Request $request, ProfessionalPayout $payout): JsonResponse
+    {
+        $this->ensureAdmin();
+
+        $data = $request->validate([
+            'status' => ['required', Rule::in(['paid', 'cancelled', 'pending'])],
+            'admin_notes' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $admin = Auth::guard('api')->user();
+
+        if ($data['status'] === 'paid') {
+            $payout->markPaid($admin, $data['admin_notes'] ?? null);
+        } else {
+            $payout->forceFill([
+                'status' => $data['status'],
+                'admin_notes' => $data['admin_notes'] ?? $payout->admin_notes,
+                'paid_at' => $data['status'] === 'paid' ? ($payout->paid_at ?? now()) : null,
+                'paid_by' => $data['status'] === 'paid' ? $admin->id : null,
+            ])->save();
+        }
+
+        return response()->json(
+            $this->presentPayout(
+                $payout->fresh()->load([
+                    'serviceRequest:id,title,category,city,status,completed_at',
+                    'professional:id,name,email,phone',
+                    'professional.professionalProfile:id,user_id,pix_type,pix_key,bank,agency,account,account_type',
+                    'servicePayment:id,total_amount,professional_amount,platform_fee,billing_type,status',
+                ])
+            )
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function presentPayout(ProfessionalPayout $payout): array
+    {
+        $profile = $payout->professional?->professionalProfile;
+
+        return [
+            'id' => $payout->id,
+            'status' => $payout->status,
+            'status_label' => match ($payout->status) {
+                'paid' => 'Pago',
+                'cancelled' => 'Cancelado',
+                default => 'Pendente',
+            },
+            'amount' => (float) $payout->amount,
+            'pix_type' => $payout->pix_type ?: $profile?->pix_type,
+            'pix_key' => $payout->pix_key ?: $profile?->pix_key,
+            'bank' => $payout->bank ?: $profile?->bank,
+            'agency' => $payout->agency ?: $profile?->agency,
+            'account' => $payout->account ?: $profile?->account,
+            'account_type' => $payout->account_type ?: $profile?->account_type,
+            'admin_notes' => $payout->admin_notes,
+            'paid_at' => $payout->paid_at?->toIso8601String(),
+            'created_at' => $payout->created_at?->toIso8601String(),
+            'service_request' => $payout->serviceRequest ? [
+                'id' => $payout->serviceRequest->id,
+                'title' => $payout->serviceRequest->title,
+                'category' => $payout->serviceRequest->category,
+                'city' => $payout->serviceRequest->city,
+                'completed_at' => $payout->serviceRequest->completed_at?->toIso8601String(),
+            ] : null,
+            'professional' => $payout->professional ? [
+                'id' => $payout->professional->id,
+                'name' => $payout->professional->name,
+                'email' => $payout->professional->email,
+                'phone' => $payout->professional->phone,
+            ] : null,
+            'service_payment' => $payout->servicePayment ? [
+                'id' => $payout->servicePayment->id,
+                'total_amount' => (float) $payout->servicePayment->total_amount,
+                'professional_amount' => (float) $payout->servicePayment->professional_amount,
+                'platform_fee' => (float) $payout->servicePayment->platform_fee,
+                'billing_type' => $payout->servicePayment->billing_type,
+            ] : null,
+        ];
     }
 
     protected function statusLabel(string $status): string
