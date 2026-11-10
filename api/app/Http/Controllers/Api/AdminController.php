@@ -563,6 +563,8 @@ class AdminController extends Controller
         return response()->json([
             'pending_count' => ProfessionalPayout::query()->where('status', 'pending')->count(),
             'pending_amount' => (float) ProfessionalPayout::query()->where('status', 'pending')->sum('amount'),
+            'paid_count' => ProfessionalPayout::query()->where('status', 'paid')->count(),
+            'paid_amount' => (float) ProfessionalPayout::query()->where('status', 'paid')->sum('amount'),
             'items' => $items,
         ]);
     }
