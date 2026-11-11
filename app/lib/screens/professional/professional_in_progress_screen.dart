@@ -185,13 +185,30 @@ class _ProfessionalInProgressScreenState
                     statusColor: _statusColor(request),
                     dateLabel: _dateLabel(request.scheduledAt),
                     busy: _busyId == request.id,
-                    onDetails: () {
-                      Navigator.push(
+                    onDetails: () async {
+                      final updated = await Navigator.push<ServiceRequest>(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => ServiceDetailScreen(request: request),
+                          builder: (_) => ServiceDetailScreen(
+                            request: request,
+                            forProfessional: true,
+                          ),
                         ),
                       );
+                      if (!mounted) return;
+                      if (updated == null) return;
+                      if (updated.status == ServiceStatus.completed) {
+                        setState(() {
+                          _requests =
+                              _requests.where((r) => r.id != updated.id).toList();
+                        });
+                      } else {
+                        setState(() {
+                          _requests = _requests
+                              .map((r) => r.id == updated.id ? updated : r)
+                              .toList();
+                        });
+                      }
                     },
                     onStart: request.hasStarted
                         ? null

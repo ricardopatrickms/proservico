@@ -415,6 +415,20 @@ class AdminController extends Controller
                 ]);
 
             $user->setAttribute('production', $this->productionPayload($user));
+            $user->setAttribute(
+                'service_requests',
+                ServiceRequest::query()
+                    ->where('professional_id', $user->id)
+                    ->whereIn('status', ['in_progress', 'completed'])
+                    ->with(['client:id,name,email'])
+                    ->orderByRaw("CASE WHEN status = 'in_progress' THEN 0 ELSE 1 END")
+                    ->orderByDesc('updated_at')
+                    ->limit(50)
+                    ->get()
+                    ->map(fn (ServiceRequest $sr) => $this->presentAssignedService($sr))
+                    ->values()
+                    ->all()
+            );
         } else {
             $user->load('addresses')->loadCount(['serviceRequests']);
         }
@@ -473,9 +487,13 @@ class AdminController extends Controller
     {
         $this->ensureAdmin();
 
-        return response()->json(
-            ServiceRequest::with(['client:id,name,email', 'professional:id,name,email'])->latest()->get()
-        );
+        $requests = ServiceRequest::with(['client:id,name,email', 'professional:id,name,email'])
+            ->latest()
+            ->get()
+            ->map(fn (ServiceRequest $sr) => $this->presentAssignedService($sr))
+            ->values();
+
+        return response()->json($requests);
     }
 
     protected function productionPayload(User $user): array
@@ -510,6 +528,29 @@ class AdminController extends Controller
             'scheduled_at' => $sr->scheduled_at?->toIso8601String(),
             'created_at' => $sr->created_at?->toIso8601String(),
             'updated_at' => $sr->updated_at?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function presentAssignedService(ServiceRequest $sr): array
+    {
+        $started = $sr->started_at !== null;
+        $completed = (string) $sr->status === 'completed';
+
+        $progressLabel = match (true) {
+            $completed => 'Concluído',
+            $started => 'Em andamento',
+            default => 'Aceito',
+        };
+
+        return [
+            ...$this->presentServiceSummary($sr),
+            'started_at' => $sr->started_at?->toIso8601String(),
+            'completed_at' => $sr->completed_at?->toIso8601String(),
+            'progress_label' => $progressLabel,
+            'has_started' => $started,
         ];
     }
 

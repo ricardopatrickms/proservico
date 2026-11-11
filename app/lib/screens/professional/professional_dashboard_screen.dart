@@ -65,6 +65,13 @@ class _ProfessionalDashboardScreenState
       .where((r) => r.status == ServiceStatus.inProgress)
       .toList();
 
+  /// Serviços em andamento, mais recentes / próximos primeiro.
+  List<ServiceRequest> get _inProgress {
+    final list = [..._active]
+      ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+    return list;
+  }
+
   List<ServiceRequest> get _availablePending {
     final userId = _userId;
     return _requests.where((r) {
@@ -229,12 +236,18 @@ class _ProfessionalDashboardScreenState
       return;
     }
     if (!mounted) return;
-    await Navigator.push(
+    final updated = await Navigator.push<ServiceRequest>(
       context,
       MaterialPageRoute(
-        builder: (_) => ServiceDetailScreen(request: request),
+        builder: (_) => ServiceDetailScreen(
+          request: request,
+          forProfessional: true,
+        ),
       ),
     );
+    if (updated != null && mounted) {
+      await _load();
+    }
   }
 
   @override
@@ -315,6 +328,15 @@ class _ProfessionalDashboardScreenState
                     newOrdersCount: _availablePending.length,
                   ),
                   const SizedBox(height: 20),
+                  _InProgressCard(
+                    requests: _inProgress,
+                    whenLabel: _whenLabel,
+                    placeLabel: _place,
+                    valueLabel: _serviceValue,
+                    money: _money,
+                    onTap: _openRequest,
+                  ),
+                  const SizedBox(height: 16),
                   if (wide)
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -574,6 +596,162 @@ class _DashStatCard extends StatelessWidget {
               fontWeight:
                   subtitleColor != null ? FontWeight.w600 : FontWeight.w400,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InProgressCard extends StatelessWidget {
+  final List<ServiceRequest> requests;
+  final String Function(DateTime) whenLabel;
+  final String Function(ServiceRequest) placeLabel;
+  final double Function(ServiceRequest) valueLabel;
+  final String Function(double) money;
+  final ValueChanged<ServiceRequest> onTap;
+
+  const _InProgressCard({
+    required this.requests,
+    required this.whenLabel,
+    required this.placeLabel,
+    required this.valueLabel,
+    required this.money,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _PanelCard(
+      title: 'Em andamento',
+      child: requests.isEmpty
+          ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'Nenhum serviço em andamento.',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              ),
+            )
+          : Column(
+              children: [
+                for (var i = 0; i < requests.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 10),
+                  InkWell(
+                    onTap: () => onTap(requests[i]),
+                    borderRadius: BorderRadius.circular(10),
+                    child: _InProgressRow(
+                      title: requests[i].title,
+                      when: whenLabel(requests[i].scheduledAt),
+                      place: placeLabel(requests[i]),
+                      value: money(valueLabel(requests[i])),
+                      hasStarted: requests[i].hasStarted,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+    );
+  }
+}
+
+class _InProgressRow extends StatelessWidget {
+  final String title;
+  final String when;
+  final String place;
+  final String value;
+  final bool hasStarted;
+
+  const _InProgressRow({
+    required this.title,
+    required this.when,
+    required this.place,
+    required this.value,
+    required this.hasStarted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final badgeLabel = hasStarted ? 'Em andamento' : 'Aceito';
+    final badgeColor = hasStarted ? AppColors.primary : const Color(0xFF16A34A);
+    final cardColor =
+        hasStarted ? const Color(0xFFEFF6FF) : const Color(0xFFECFDF5);
+    final borderColor =
+        hasStarted ? const Color(0xFFBFDBFE) : const Color(0xFFA7F3D0);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: badgeColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              hasStarted ? Icons.handyman_outlined : Icons.check_circle_outline,
+              size: 18,
+              color: badgeColor,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13.5,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$when · $place',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: badgeColor,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  badgeLabel,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.success,
+                ),
+              ),
+            ],
           ),
         ],
       ),
