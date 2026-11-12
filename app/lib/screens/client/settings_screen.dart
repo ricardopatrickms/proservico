@@ -6,7 +6,7 @@ import '../../services/auth_service.dart';
 import '../../services/session_store.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/helpers.dart';
-import '../auth/welcome_screen.dart';
+import '../auth/login_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -16,7 +16,7 @@ class SettingsScreen extends StatelessWidget {
     ClientRequestsStore.instance.clear();
     if (!context.mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
       (_) => false,
     );
   }

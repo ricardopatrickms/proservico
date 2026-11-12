@@ -5,7 +5,7 @@ import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/brand_logo.dart';
 import '../../widgets/helpers.dart';
-import '../auth/welcome_screen.dart';
+import '../auth/login_screen.dart';
 import 'professional_shell.dart';
 
 /// Tela bloqueada para profissional com cadastro ainda pendente de aprovação.
@@ -58,7 +58,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
     } finally {
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
         (_) => false,
       );
     }

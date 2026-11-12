@@ -5,7 +5,7 @@ import '../../services/auth_navigation.dart';
 import '../../services/auth_service.dart';
 import '../../services/session_store.dart';
 import '../../theme/app_theme.dart';
-import 'welcome_screen.dart';
+import 'login_screen.dart';
 
 /// Restaura a sessão salva ao abrir o app.
 class BootstrapScreen extends StatefulWidget {
@@ -28,7 +28,7 @@ class _BootstrapScreenState extends State<BootstrapScreen> {
     final store = SessionStore.instance;
 
     if (!store.isLoggedIn) {
-      _show(const WelcomeScreen());
+      _show(const LoginScreen());
       return;
     }
 
@@ -38,15 +38,15 @@ class _BootstrapScreenState extends State<BootstrapScreen> {
     } on ApiException catch (e) {
       if (e.statusCode == 401 || e.isSessionExpired || e.isAccountInactive) {
         await SessionStore.instance.clear();
-        _show(const WelcomeScreen());
+        _show(const LoginScreen());
         return;
       }
 
       final cached = SessionStore.instance.currentUser;
-      _show(cached != null ? homeForUser(cached) : const WelcomeScreen());
+      _show(cached != null ? homeForUser(cached) : const LoginScreen());
     } catch (_) {
       final cached = SessionStore.instance.currentUser;
-      _show(cached != null ? homeForUser(cached) : const WelcomeScreen());
+      _show(cached != null ? homeForUser(cached) : const LoginScreen());
     }
   }
 
@@ -61,9 +61,9 @@ class _BootstrapScreenState extends State<BootstrapScreen> {
     if (screen != null) return screen;
 
     return const Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.navy,
       body: Center(
-        child: CircularProgressIndicator(),
+        child: CircularProgressIndicator(color: Colors.white),
       ),
     );
   }
