@@ -4,7 +4,7 @@ import '../../services/auth_service.dart';
 import '../../services/session_store.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_menu_screen.dart';
-import '../auth/welcome_screen.dart';
+import '../auth/login_screen.dart';
 import 'professional_dashboard_screen.dart';
 import 'professional_history_screen.dart';
 import 'professional_in_progress_screen.dart';
@@ -57,7 +57,7 @@ class _ProfessionalShellState extends State<ProfessionalShell> {
     await AuthService.instance.logout();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
       (_) => false,
     );
   }

@@ -40,7 +40,14 @@ class ServiceRequest {
   final ServiceStatus status;
   final String? professionalName;
   final DateTime? createdAt;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final Map<String, bool> completionChecklist;
+  final String? completionNotes;
+  final List<String> completionPhotoUrls;
   final List<ServiceProposal> proposals;
+
+  bool get hasStarted => startedAt != null;
 
   const ServiceRequest({
     required this.id,
@@ -75,6 +82,11 @@ class ServiceRequest {
     this.status = ServiceStatus.pending,
     this.professionalName,
     this.createdAt,
+    this.startedAt,
+    this.completedAt,
+    this.completionChecklist = const {},
+    this.completionNotes,
+    this.completionPhotoUrls = const [],
     this.proposals = const [],
   });
 
@@ -135,11 +147,30 @@ class ServiceRequest {
           ? professional['name']?.toString()
           : json['professional_name']?.toString(),
       createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
+      startedAt: DateTime.tryParse(json['started_at']?.toString() ?? ''),
+      completedAt: DateTime.tryParse(json['completed_at']?.toString() ?? ''),
+      completionChecklist: _parseChecklist(json['completion_checklist']),
+      completionNotes: json['completion_notes']?.toString(),
+      completionPhotoUrls: (json['completion_photo_urls'] as List?)
+              ?.map((e) => e.toString())
+              .where((e) => e.isNotEmpty)
+              .toList() ??
+          const <String>[],
       proposals: (json['proposals'] as List?)
               ?.whereType<Map>()
               .map((e) => ServiceProposal.fromJson(Map<String, dynamic>.from(e)))
               .toList() ??
           const [],
+    );
+  }
+
+  static Map<String, bool> _parseChecklist(dynamic raw) {
+    if (raw is! Map) return const {};
+    return raw.map(
+      (key, value) => MapEntry(
+        key.toString(),
+        value == true || value == 1 || value == '1' || value == 'true',
+      ),
     );
   }
 

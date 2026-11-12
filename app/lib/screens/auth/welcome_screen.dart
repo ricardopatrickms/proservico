@@ -6,8 +6,20 @@ import 'login_screen.dart';
 import 'professional_register_screen.dart';
 import 'register_screen.dart';
 
+/// Escolha do tipo de cadastro (cliente ou profissional).
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
+
+  void _backToLogin(BuildContext context) {
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+      return;
+    }
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (_) => false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,21 +28,27 @@ class WelcomeScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 16, 20, 0),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: BrandLogo(fontSize: 20),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 20, 0),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: () => _backToLogin(context),
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
+                    tooltip: 'Voltar ao login',
+                  ),
+                  const BrandLogo(fontSize: 20),
+                ],
               ),
             ),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const Text(
-                      'Conectando quem precisa a quem faz',
+                      'Como você quer se cadastrar?',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 28,
@@ -40,7 +58,7 @@ class WelcomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'A plataforma completa para encontrar profissionais qualificados ou oferecer seus serviços',
+                      'Escolha o tipo de conta para começar a usar o ProServiço',
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.85),
                         fontSize: 15,
@@ -51,7 +69,8 @@ class WelcomeScreen extends StatelessWidget {
                     _RoleCard(
                       icon: Icons.person_search_outlined,
                       title: 'Precisa de um serviço?',
-                      description: 'Encontre profissionais perto de você e solicite com praticidade.',
+                      description:
+                          'Encontre profissionais perto de você e solicite com praticidade.',
                       background: AppColors.surface,
                       titleColor: AppColors.navy,
                       iconColor: AppColors.primary,
@@ -59,7 +78,6 @@ class WelcomeScreen extends StatelessWidget {
                       primaryLabel: 'Sou cliente',
                       primaryColor: AppColors.primary,
                       primaryForeground: Colors.white,
-                      secondaryLabel: 'Entrar',
                       onPrimary: () {
                         Navigator.push(
                           context,
@@ -68,18 +86,13 @@ class WelcomeScreen extends StatelessWidget {
                           ),
                         );
                       },
-                      onSecondary: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const LoginScreen()),
-                        );
-                      },
                     ),
                     const SizedBox(height: 14),
                     _RoleCard(
                       icon: Icons.work_outline,
                       title: 'É um profissional?',
-                      description: 'Cadastre-se e comece a receber pedidos na sua região.',
+                      description:
+                          'Cadastre-se e comece a receber pedidos na sua região.',
                       background: AppColors.accent,
                       titleColor: Colors.white,
                       iconColor: Colors.white,
@@ -87,19 +100,12 @@ class WelcomeScreen extends StatelessWidget {
                       primaryLabel: 'Sou profissional',
                       primaryColor: Colors.white,
                       primaryForeground: AppColors.accent,
-                      secondaryLabel: 'Entrar',
                       onPrimary: () {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (_) => const ProfessionalRegisterScreen(),
                           ),
-                        );
-                      },
-                      onSecondary: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const LoginScreen()),
                         );
                       },
                     ),
@@ -125,9 +131,7 @@ class _RoleCard extends StatelessWidget {
   final String primaryLabel;
   final Color primaryColor;
   final Color primaryForeground;
-  final String secondaryLabel;
   final VoidCallback onPrimary;
-  final VoidCallback onSecondary;
 
   const _RoleCard({
     required this.icon,
@@ -140,9 +144,7 @@ class _RoleCard extends StatelessWidget {
     required this.primaryLabel,
     required this.primaryColor,
     required this.primaryForeground,
-    required this.secondaryLabel,
     required this.onPrimary,
-    required this.onSecondary,
   });
 
   @override
@@ -180,7 +182,10 @@ class _RoleCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          Text(description, style: TextStyle(color: descriptionColor, fontSize: 13, height: 1.35)),
+          Text(
+            description,
+            style: TextStyle(color: descriptionColor, fontSize: 13, height: 1.35),
+          ),
           const SizedBox(height: 14),
           ElevatedButton(
             onPressed: onPrimary,
@@ -191,27 +196,6 @@ class _RoleCard extends StatelessWidget {
             ),
             child: Text(primaryLabel),
           ),
-          const SizedBox(height: 8),
-          if (background == AppColors.accent)
-            ElevatedButton(
-              onPressed: onSecondary,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: AppColors.accent,
-                minimumSize: const Size.fromHeight(46),
-              ),
-              child: Text(secondaryLabel),
-            )
-          else
-            OutlinedButton(
-              onPressed: onSecondary,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                side: const BorderSide(color: AppColors.primary, width: 1.5),
-                minimumSize: const Size.fromHeight(46),
-              ),
-              child: Text(secondaryLabel),
-            ),
         ],
       ),
     );

@@ -114,13 +114,6 @@ class _ClientServicesScreenState extends State<ClientServicesScreen>
     }
   }
 
-  void _openAllProposalsModal(ServiceRequest request) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => _ServiceProposalsDialog(request: request),
-    );
-  }
-
   void _openProposalsPage(ServiceRequest request) {
     final open = widget.onOpenProposals;
     if (open != null) {
@@ -258,7 +251,6 @@ class _ClientServicesScreenState extends State<ClientServicesScreen>
                       ),
                       onCancel: () => _cancelRequest(request),
                       onEdit: () => _openEditSheet(request),
-                      onViewProposals: () => _openAllProposalsModal(request),
                       onGoToProposals: () => _openProposalsPage(request),
                     ),
                   ),
@@ -278,7 +270,6 @@ class _ClientServiceCard extends StatelessWidget {
   final VoidCallback onDetails;
   final VoidCallback onCancel;
   final VoidCallback onEdit;
-  final VoidCallback onViewProposals;
   final VoidCallback onGoToProposals;
 
   const _ClientServiceCard({
@@ -288,7 +279,6 @@ class _ClientServiceCard extends StatelessWidget {
     required this.onDetails,
     required this.onCancel,
     required this.onEdit,
-    required this.onViewProposals,
     required this.onGoToProposals,
   });
 
@@ -428,21 +418,13 @@ class _ClientServiceCard extends StatelessWidget {
                   onTap: onCancel,
                 ),
               ],
-              if (hasProposals) ...[
+              if (hasProposals && !isHistory)
                 _OutlineAction(
-                  label: 'Ver Todas as Propostas (${proposals.length})',
-                  icon: Icons.visibility_outlined,
-                  color: AppColors.primary,
-                  onTap: onViewProposals,
+                  label: 'Ir para Propostas',
+                  icon: Icons.chat_bubble_outline,
+                  color: AppColors.success,
+                  onTap: onGoToProposals,
                 ),
-                if (!isHistory)
-                  _OutlineAction(
-                    label: 'Ir para Propostas',
-                    icon: Icons.chat_bubble_outline,
-                    color: AppColors.success,
-                    onTap: onGoToProposals,
-                  ),
-              ],
               if (isHistory || !hasProposals)
                 _OutlineAction(
                   label: 'Ver detalhes',
@@ -640,196 +622,6 @@ class _OutlineAction extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ServiceProposalsDialog extends StatelessWidget {
-  final ServiceRequest request;
-
-  const _ServiceProposalsDialog({required this.request});
-
-  Color _statusBg(ServiceProposal proposal) {
-    if (proposal.paymentAwaiting) return const Color(0xFFFEF3C7);
-    if (proposal.paymentPaid) return const Color(0xFFDCFCE7);
-    return switch (proposal.status) {
-      ProposalStatus.pending => const Color(0xFFDBEAFE),
-      ProposalStatus.accepted => const Color(0xFFDCFCE7),
-      ProposalStatus.rejected => const Color(0xFFE5E7EB),
-      ProposalStatus.withdrawn => const Color(0xFFF3F4F6),
-    };
-  }
-
-  Color _statusFg(ServiceProposal proposal) {
-    if (proposal.paymentAwaiting) return AppColors.warning;
-    if (proposal.paymentPaid) return AppColors.success;
-    return switch (proposal.status) {
-      ProposalStatus.pending => AppColors.primaryDark,
-      ProposalStatus.accepted => AppColors.success,
-      ProposalStatus.rejected => AppColors.textSecondary,
-      ProposalStatus.withdrawn => AppColors.textSecondary,
-    };
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final proposals = request.proposals;
-    final maxHeight = MediaQuery.sizeOf(context).height * 0.75;
-
-    return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: maxHeight, maxWidth: 520),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 4, 8),
-              child: Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Propostas',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Flexible(
-              child: ListView.separated(
-                shrinkWrap: true,
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-                itemCount: proposals.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final proposal = proposals[index];
-                  final when = DateFormat("dd/MM/yyyy 'às' HH:mm:ss", 'pt_BR')
-                      .format(proposal.createdAt);
-
-                  return Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            CircleAvatar(
-                              radius: 18,
-                              backgroundColor:
-                                  AppColors.primary.withValues(alpha: 0.12),
-                              child: const Icon(
-                                Icons.person_outline,
-                                color: AppColors.primary,
-                                size: 20,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    proposal.professionalName,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 3,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: _statusBg(proposal),
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: Text(
-                                      proposal.statusLabel,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                        color: _statusFg(proposal),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Text(
-                              formatCurrency(proposal.amount),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.success,
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (proposal.message.trim().isNotEmpty) ...[
-                          const SizedBox(height: 12),
-                          const Text(
-                            'Mensagem do profissional:',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: AppColors.background,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              proposal.message,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                height: 1.35,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 10),
-                        Text(
-                          'Enviada em $when',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
         ),
       ),
     );

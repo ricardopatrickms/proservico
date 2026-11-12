@@ -39,6 +39,8 @@ Route::middleware(['auth:api', 'account.active'])->group(function () {
     Route::get('service-requests/{serviceRequest}', [ServiceRequestController::class, 'show']);
     Route::put('service-requests/{serviceRequest}', [ServiceRequestController::class, 'update']);
     Route::patch('service-requests/{serviceRequest}/status', [ServiceRequestController::class, 'updateStatus']);
+    Route::post('service-requests/{serviceRequest}/start', [ServiceRequestController::class, 'start']);
+    Route::post('service-requests/{serviceRequest}/complete', [ServiceRequestController::class, 'complete']);
 
     Route::get('service-requests/{serviceRequest}/proposals', [ServiceProposalController::class, 'index']);
     Route::post('service-requests/{serviceRequest}/proposals', [ServiceProposalController::class, 'store']);
@@ -60,6 +62,9 @@ Route::middleware(['auth:api', 'account.active'])->group(function () {
         Route::get('dashboard', [AdminController::class, 'dashboard']);
         Route::get('analytics', [AdminController::class, 'analytics']);
         Route::get('billing', [AdminController::class, 'billing']);
+        Route::get('payouts', [AdminController::class, 'payouts']);
+        Route::get('payouts/{payout}', [AdminController::class, 'showPayout']);
+        Route::match(['patch', 'post'], 'payouts/{payout}', [AdminController::class, 'updatePayout']);
         Route::get('users', [AdminController::class, 'users']);
         Route::get('users/{user}', [AdminController::class, 'showUser']);
         Route::patch('users/{user}/approval', [AdminController::class, 'setApproval']);

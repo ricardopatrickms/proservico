@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/client_requests_store.dart';
-import '../screens/auth/welcome_screen.dart';
+import '../screens/auth/login_screen.dart';
 import 'session_store.dart';
 
 /// Trata 401/conta inativa em rotas autenticadas: limpa sessão e volta ao início.
@@ -30,7 +30,7 @@ class SessionExpiry {
       if (nav == null) return;
 
       nav.pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
         (_) => false,
       );
 

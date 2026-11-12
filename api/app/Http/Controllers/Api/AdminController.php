@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\UserStatus;
 use App\Http\Controllers\Controller;
+use App\Models\ProfessionalPayout;
 use App\Models\ServicePayment;
 use App\Models\ServiceRequest;
 use App\Models\User;
@@ -11,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class AdminController extends Controller
@@ -414,6 +416,20 @@ class AdminController extends Controller
                 ]);
 
             $user->setAttribute('production', $this->productionPayload($user));
+            $user->setAttribute(
+                'service_requests',
+                ServiceRequest::query()
+                    ->where('professional_id', $user->id)
+                    ->whereIn('status', ['in_progress', 'completed'])
+                    ->with(['client:id,name,email'])
+                    ->orderByRaw("CASE WHEN status = 'in_progress' THEN 0 ELSE 1 END")
+                    ->orderByDesc('updated_at')
+                    ->limit(50)
+                    ->get()
+                    ->map(fn (ServiceRequest $sr) => $this->presentAssignedService($sr))
+                    ->values()
+                    ->all()
+            );
         } else {
             $user->load('addresses')->loadCount(['serviceRequests']);
         }
@@ -472,9 +488,13 @@ class AdminController extends Controller
     {
         $this->ensureAdmin();
 
-        return response()->json(
-            ServiceRequest::with(['client:id,name,email', 'professional:id,name,email'])->latest()->get()
-        );
+        $requests = ServiceRequest::with(['client:id,name,email', 'professional:id,name,email'])
+            ->latest()
+            ->get()
+            ->map(fn (ServiceRequest $sr) => $this->presentAssignedService($sr))
+            ->values();
+
+        return response()->json($requests);
     }
 
     protected function productionPayload(User $user): array
@@ -512,6 +532,29 @@ class AdminController extends Controller
         ];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    protected function presentAssignedService(ServiceRequest $sr): array
+    {
+        $started = $sr->started_at !== null;
+        $completed = (string) $sr->status === 'completed';
+
+        $progressLabel = match (true) {
+            $completed => 'Concluído',
+            $started => 'Em andamento',
+            default => 'Aceito',
+        };
+
+        return [
+            ...$this->presentServiceSummary($sr),
+            'started_at' => $sr->started_at?->toIso8601String(),
+            'completed_at' => $sr->completed_at?->toIso8601String(),
+            'progress_label' => $progressLabel,
+            'has_started' => $started,
+        ];
+    }
+
     protected function extractNeighborhood(?string $address, ?string $city): string
     {
         $address = trim((string) $address);
@@ -536,6 +579,232 @@ class AdminController extends Controller
         }
 
         return $city !== '' ? $city : 'Não informado';
+    }
+
+    public function payouts(Request $request): JsonResponse
+    {
+        $this->ensureAdmin();
+
+        $status = $request->query('status');
+        $month = $request->query('month');
+
+        $query = ProfessionalPayout::query()
+            ->with([
+                'serviceRequest:id,title,category,city,status,completed_at,client_id',
+                'serviceRequest.client:id,name,email',
+                'professional:id,name,email,phone',
+                'professional.professionalProfile:id,user_id,pix_type,pix_key,bank,agency,account,account_type',
+                'servicePayment:id,total_amount,professional_amount,platform_fee,billing_type,status',
+            ])
+            ->latest('id');
+
+        $summaryQuery = ProfessionalPayout::query();
+
+        if (is_string($month) && preg_match('/^\d{4}-\d{2}$/', $month)) {
+            $start = \Carbon\Carbon::createFromFormat('Y-m', $month)->startOfMonth();
+            $end = $start->copy()->endOfMonth();
+            $query->whereBetween('created_at', [$start, $end]);
+            $summaryQuery->whereBetween('created_at', [$start, $end]);
+        }
+
+        if (is_string($status) && in_array($status, ['pending', 'paid', 'cancelled'], true)) {
+            $query->where('status', $status);
+        }
+
+        $items = $query->limit(100)->get()->map(fn (ProfessionalPayout $payout) => $this->presentPayout($payout));
+
+        return response()->json([
+            'pending_count' => (clone $summaryQuery)->where('status', 'pending')->count(),
+            'pending_amount' => (float) (clone $summaryQuery)->where('status', 'pending')->sum('amount'),
+            'paid_count' => (clone $summaryQuery)->where('status', 'paid')->count(),
+            'paid_amount' => (float) (clone $summaryQuery)->where('status', 'paid')->sum('amount'),
+            'items' => $items,
+        ]);
+    }
+
+    public function showPayout(ProfessionalPayout $payout): JsonResponse
+    {
+        $this->ensureAdmin();
+
+        $payout->load($this->payoutDetailRelations());
+
+        return response()->json($this->presentPayout($payout, detailed: true));
+    }
+
+    public function updatePayout(Request $request, ProfessionalPayout $payout): JsonResponse
+    {
+        $this->ensureAdmin();
+
+        $requiresReceipt = $request->input('status') === 'paid' && ! $payout->receipt_path;
+
+        $data = $request->validate([
+            'status' => ['required', Rule::in(['paid', 'cancelled', 'pending'])],
+            'admin_notes' => ['nullable', 'string', 'max:2000'],
+            'receipt' => [
+                Rule::requiredIf($requiresReceipt),
+                'nullable',
+                'file',
+                'mimes:jpg,jpeg,png,webp,pdf',
+                'max:5120',
+            ],
+        ], [
+            'receipt.required' => 'O comprovante da transferência é obrigatório.',
+            'receipt.mimes' => 'O comprovante deve ser uma imagem (JPG, PNG, WEBP) ou PDF.',
+            'receipt.max' => 'O comprovante deve ter no máximo 5MB.',
+        ]);
+
+        $admin = Auth::guard('api')->user();
+        $receiptPath = $payout->receipt_path;
+
+        if ($request->hasFile('receipt')) {
+            if ($receiptPath) {
+                Storage::disk('public')->delete($receiptPath);
+            }
+            $receiptPath = $request->file('receipt')->store(
+                'payouts/'.$payout->id.'/receipts',
+                'public'
+            );
+        }
+
+        if ($data['status'] === 'paid') {
+            if (! $receiptPath) {
+                return response()->json([
+                    'message' => 'O comprovante da transferência é obrigatório.',
+                    'errors' => ['receipt' => ['O comprovante da transferência é obrigatório.']],
+                ], 422);
+            }
+            $payout->markPaid($admin, $data['admin_notes'] ?? null, $receiptPath);
+        } else {
+            $payout->forceFill([
+                'status' => $data['status'],
+                'admin_notes' => $data['admin_notes'] ?? $payout->admin_notes,
+                'receipt_path' => $receiptPath,
+                'paid_at' => $data['status'] === 'paid' ? ($payout->paid_at ?? now()) : null,
+                'paid_by' => $data['status'] === 'paid' ? $admin->id : null,
+            ])->save();
+        }
+
+        return response()->json(
+            $this->presentPayout(
+                $payout->fresh()->load($this->payoutDetailRelations()),
+                detailed: true,
+            )
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function payoutDetailRelations(): array
+    {
+        return [
+            'serviceRequest.client:id,name,email,phone',
+            'professional:id,name,email,phone',
+            'professional.professionalProfile:id,user_id,pix_type,pix_key,bank,agency,account,account_type',
+            'servicePayment:id,total_amount,professional_amount,platform_fee,billing_type,status',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function presentPayout(ProfessionalPayout $payout, bool $detailed = false): array
+    {
+        $profile = $payout->professional?->professionalProfile;
+        $service = $payout->serviceRequest;
+
+        $servicePayload = null;
+        if ($service) {
+            $servicePayload = [
+                'id' => $service->id,
+                'title' => $service->title,
+                'category' => $service->category,
+                'city' => $service->city,
+                'completed_at' => $service->completed_at?->toIso8601String(),
+                'client' => $service->client ? [
+                    'id' => $service->client->id,
+                    'name' => $service->client->name,
+                    'email' => $service->client->email,
+                    'phone' => $service->client->phone,
+                ] : null,
+            ];
+
+            if ($detailed) {
+                $raw = is_array($service->completion_checklist) ? $service->completion_checklist : [];
+                $labels = [
+                    'service_done' => 'Serviço concluído conforme combinado',
+                    'site_ok' => 'Local deixado em ordem',
+                    'client_informed' => 'Cliente informado da conclusão',
+                    'materials_used' => 'Materiais utilizados',
+                ];
+
+                $checklist = [];
+                foreach ($labels as $key => $label) {
+                    if (! array_key_exists($key, $raw)) {
+                        continue;
+                    }
+                    $checklist[] = [
+                        'key' => $key,
+                        'label' => $label,
+                        'checked' => (bool) $raw[$key],
+                    ];
+                }
+
+                $servicePayload = [
+                    ...$servicePayload,
+                    'description' => $service->description,
+                    'address' => $service->address,
+                    'number' => $service->number,
+                    'state' => $service->state,
+                    'cep' => $service->cep,
+                    'status' => $service->status,
+                    'status_label' => $this->statusLabel((string) $service->status),
+                    'scheduled_at' => $service->scheduled_at?->toIso8601String(),
+                    'started_at' => $service->started_at?->toIso8601String(),
+                    'completion_checklist' => $checklist,
+                    'materials_list' => isset($raw['materials_list']) ? (string) $raw['materials_list'] : null,
+                    'completion_notes' => $service->completion_notes,
+                    'completion_photo_urls' => $service->completion_photo_urls,
+                    'photo_urls' => $service->photo_urls,
+                ];
+            }
+        }
+
+        return [
+            'id' => $payout->id,
+            'status' => $payout->status,
+            'status_label' => match ($payout->status) {
+                'paid' => 'Pago',
+                'cancelled' => 'Cancelado',
+                default => 'Pendente',
+            },
+            'amount' => (float) $payout->amount,
+            'pix_type' => $payout->pix_type ?: $profile?->pix_type,
+            'pix_key' => $payout->pix_key ?: $profile?->pix_key,
+            'bank' => $payout->bank ?: $profile?->bank,
+            'agency' => $payout->agency ?: $profile?->agency,
+            'account' => $payout->account ?: $profile?->account,
+            'account_type' => $payout->account_type ?: $profile?->account_type,
+            'admin_notes' => $payout->admin_notes,
+            'receipt_path' => $payout->receipt_path,
+            'receipt_url' => $payout->receipt_url,
+            'paid_at' => $payout->paid_at?->toIso8601String(),
+            'created_at' => $payout->created_at?->toIso8601String(),
+            'service_request' => $servicePayload,
+            'professional' => $payout->professional ? [
+                'id' => $payout->professional->id,
+                'name' => $payout->professional->name,
+                'email' => $payout->professional->email,
+                'phone' => $payout->professional->phone,
+            ] : null,
+            'service_payment' => $payout->servicePayment ? [
+                'id' => $payout->servicePayment->id,
+                'total_amount' => (float) $payout->servicePayment->total_amount,
+                'professional_amount' => (float) $payout->servicePayment->professional_amount,
+                'platform_fee' => (float) $payout->servicePayment->platform_fee,
+                'billing_type' => $payout->servicePayment->billing_type,
+            ] : null,
+        ];
     }
 
     protected function statusLabel(string $status): string
