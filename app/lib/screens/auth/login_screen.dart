@@ -81,10 +81,9 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Column(
           children: [
             const Padding(
-              padding: EdgeInsets.fromLTRB(20, 16, 20, 0),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: BrandLogo(fontSize: 20),
+              padding: EdgeInsets.fromLTRB(20, 72, 20, 16),
+              child: Center(
+                child: BrandLogo(fontSize: 48),
               ),
             ),
             Expanded(

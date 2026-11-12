@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Storage;
 
 #[Fillable([
     'service_request_id',
@@ -19,17 +20,31 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'account',
     'account_type',
     'admin_notes',
+    'receipt_path',
     'paid_by',
     'paid_at',
 ])]
 class ProfessionalPayout extends Model
 {
+    protected $appends = [
+        'receipt_url',
+    ];
+
     protected function casts(): array
     {
         return [
             'amount' => 'decimal:2',
             'paid_at' => 'datetime',
         ];
+    }
+
+    public function getReceiptUrlAttribute(): ?string
+    {
+        if (! $this->receipt_path) {
+            return null;
+        }
+
+        return Storage::disk('public')->url($this->receipt_path);
     }
 
     public function serviceRequest(): BelongsTo
@@ -62,7 +77,7 @@ class ProfessionalPayout extends Model
         return $this->status === 'paid';
     }
 
-    public function markPaid(User $admin, ?string $notes = null): void
+    public function markPaid(User $admin, ?string $notes = null, ?string $receiptPath = null): void
     {
         if ($this->isPaid()) {
             return;
@@ -73,6 +88,7 @@ class ProfessionalPayout extends Model
             'paid_by' => $admin->id,
             'paid_at' => now(),
             'admin_notes' => $notes ?? $this->admin_notes,
+            'receipt_path' => $receiptPath ?? $this->receipt_path,
         ])->save();
     }
 }
