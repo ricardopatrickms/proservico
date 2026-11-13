@@ -77,14 +77,14 @@ class _ProfessionalShellState extends State<ProfessionalShell> {
     setState(() {
       _showingMenu = false;
       if (i == 0) _nav = ProfessionalNav.dashboard;
-      if (i == 1) _nav = ProfessionalNav.history;
+      if (i == 1) _nav = ProfessionalNav.received;
       if (i == 2) _nav = ProfessionalNav.profile;
     });
   }
 
   int _selectedBottomIndex() {
     return switch (_nav) {
-      ProfessionalNav.history => 1,
+      ProfessionalNav.received => 1,
       ProfessionalNav.profile => 2,
       _ => 0,
     };
@@ -172,9 +172,9 @@ class _ProfessionalShellState extends State<ProfessionalShell> {
                     label: 'Dashboard',
                   ),
                   NavigationDestination(
-                    icon: Icon(Icons.history_outlined),
-                    selectedIcon: Icon(Icons.history),
-                    label: 'Histórico',
+                    icon: Icon(Icons.assignment_outlined),
+                    selectedIcon: Icon(Icons.assignment),
+                    label: 'Serviços recebidos',
                   ),
                   NavigationDestination(
                     icon: Icon(Icons.person_outline),

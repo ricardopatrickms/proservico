@@ -5,7 +5,6 @@ import '../../services/auth_navigation.dart';
 import '../../services/api_exception.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/brand_logo.dart';
 import '../../widgets/helpers.dart';
 import 'forgot_password_screen.dart';
 import 'welcome_screen.dart';
@@ -23,6 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _obscure = true;
   bool _loading = false;
+  String? _formError;
 
   @override
   void dispose() {
@@ -35,7 +35,10 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
     if (_loading) return;
 
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _formError = null;
+    });
     try {
       final result = await AuthService.instance.login(
         email: _emailController.text.trim(),
@@ -57,10 +60,10 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } on ApiException catch (e) {
       if (!mounted) return;
-      showAppSnackBar(context, e.displayMessage);
+      setState(() => _formError = e.displayMessage);
     } catch (_) {
       if (!mounted) return;
-      showAppSnackBar(context, 'Não foi possível entrar. Tente novamente.');
+      setState(() => _formError = 'Não foi possível entrar. Tente novamente.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -76,14 +79,18 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.navy,
+      backgroundColor: const Color(0xFF001246),
       body: SafeArea(
         child: Column(
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 72, 20, 16),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 48, 20, 8),
               child: Center(
-                child: BrandLogo(fontSize: 48),
+                child: Image.asset(
+                  'assets/logo/logo.png',
+                  height: 180,
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
             Expanded(
@@ -148,6 +155,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                   decoration: const InputDecoration(
                                     hintText: 'seu@email.com',
                                   ),
+                                  onChanged: (_) {
+                                    if (_formError != null) {
+                                      setState(() => _formError = null);
+                                    }
+                                  },
                                   validator: (v) =>
                                       (v == null || !v.contains('@'))
                                           ? 'Informe um e-mail válido'
@@ -179,10 +191,26 @@ class _LoginScreenState extends State<LoginScreen> {
                                       ),
                                     ),
                                   ),
+                                  onChanged: (_) {
+                                    if (_formError != null) {
+                                      setState(() => _formError = null);
+                                    }
+                                  },
                                   validator: (v) => (v == null || v.length < 4)
                                       ? 'Senha inválida'
                                       : null,
                                 ),
+                                if (_formError != null) ...[
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    _formError!,
+                                    style: const TextStyle(
+                                      color: AppColors.danger,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
                                 const SizedBox(height: 24),
                                 ElevatedButton(
                                   onPressed: _loading ? null : _submit,
